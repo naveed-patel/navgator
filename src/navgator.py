@@ -28,7 +28,6 @@ class Navgator(QtWidgets.QMainWindow):
     def __init__(self, *args):
         super().__init__()
         self.title = 'Navgator'
-        self.version = "0.1.0"
         self.load_settings()
         threadpool = QtCore.QThreadPool()
         threadpool.setMaxThreadCount(1)
@@ -87,8 +86,8 @@ class Navgator(QtWidgets.QMainWindow):
 
             if Nav.conf["panes"]["active"] == name:
                 self.active_pane = p
-                p.tabbar.setStyleSheet(
-                    '''QTabBar::tab:selected {background: blue;}
+                p.tabbar.setStyleSheet('''
+                    QTabBar::tab:selected {background: blue;}
                     NavBreadCrumbsBar{background-color: blue;}
                     QTabWidget::pane {border: 0px;}
                     ''')
@@ -531,6 +530,7 @@ def exception_hook(exctype, val, trcbk):
 def main(args=None):
     if args is None:
         args = sys.argv[1:]
+        logger.debug(args)
     sys._excepthook = sys.excepthook
     app = NavApp(args)
 

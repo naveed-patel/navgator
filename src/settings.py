@@ -38,6 +38,7 @@ class NavSettings(QtWidgets.QDialog):
         preflist.currentRowChanged.connect(self.display)
         self.sizeHint()
 
+
     def genSetUI(self):
         layout = QtWidgets.QHBoxLayout()
         folders_first = QtWidgets.QCheckBox("Sort folders first")
@@ -48,10 +49,12 @@ class NavSettings(QtWidgets.QDialog):
 
     def paneSetUI(self):
         layout = QtWidgets.QHBoxLayout()
-        layout.addWidget(QtWidgets.QCheckBox("Pane 1"))
-        layout.addWidget(QtWidgets.QCheckBox("Pane 2"))
-        layout.addWidget(QtWidgets.QCheckBox("Pane 3"))
-        layout.addWidget(QtWidgets.QCheckBox("Pane 4"))
+        for i in range(1, 5):
+            name = f"Pane {i}"
+            pane_cb = QtWidgets.QCheckBox(name)
+            if Nav.conf["panes"][name]["visible"]:
+                pane_cb.setChecked(True)
+            layout.addWidget(pane_cb)
         self.paneSet.setLayout(layout)
 
     def apply(self):
@@ -67,7 +70,11 @@ class NavSettings(QtWidgets.QDialog):
                     else:
                         Nav.conf["sort_folders_first"] = False
                     logger.debug(Nav.conf["sort_folders_first"])
-                    # self.change_sorting_algorithm()
+                elif widget.text() in ["Pane 1", "Pane 2", "Pane 3", "Pane 4"]:
+                    if widget.checkState():
+                        Nav.conf["panes"][widget.text()]["visible"] = True
+                    else:
+                        Nav.conf["panes"][widget.text()]["visible"] = False
 
     def display(self, i):
         self.stack.setCurrentIndex(i)

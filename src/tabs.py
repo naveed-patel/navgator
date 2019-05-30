@@ -329,6 +329,9 @@ class NavList(QtWidgets.QTableView):
             self.hv.updateCheckState(0)  # Uncheck main checkbox
             self._loading = True
             self.vmod.list_dir(loc)
+            self.status_info = f"Files: {self.vmod.fcount}, Dirs: " \
+                               f"{self.vmod.dcount} Total: " \
+                               f"{humansize(self.vmod.total)}"
             self.sortByColumn(self.sort_column, self.sort_order)
             self._loading = False
             if self.location != os.path.abspath(loc):

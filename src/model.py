@@ -4,7 +4,7 @@ import sys
 import time
 from PyQt5 import QtCore, QtWidgets
 from .core import NavStates
-from .helper import logger, humansize
+from .helper import logger, humansize, to_bytes
 from .pub import Pub
 
 
@@ -155,7 +155,9 @@ class NavItemModel(QtCore.QAbstractItemModel):
         """ Remove a row from the model."""
         for item in self.files:
             if rem_item == item[0]:
-                if item[self.state] & ~NavStates.IS_DIR:
+                if item[self.state] & NavStates.IS_DIR:
+                    self.dcount -= 1
+                else:
                     try:
                         size = to_bytes(item[2])
                         self.total -= size
@@ -163,8 +165,6 @@ class NavItemModel(QtCore.QAbstractItemModel):
                         logger.debug(f"Error getting size for {rem_item}",
                                      exc_info=True)
                     self.fcount -= 1
-                else:
-                    self.dcount -= 1
                 index = self.files.index(item)
                 self.beginRemoveRows(QtCore.QModelIndex(), index, index)
                 self.files.pop(index)

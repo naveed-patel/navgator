@@ -105,3 +105,6 @@ venv.bak/
 
 # appdata
 appdata/
+
+# ide
+.vscode/

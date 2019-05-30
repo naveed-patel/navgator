@@ -1,9 +1,17 @@
 # Navgator
 
+![N|Solid](https://img.shields.io/badge/price-Free-green.svg) ![N|Solid](https://img.shields.io/badge/python-%3E%3D3.7-blue.svg)
+
 [![N|Solid](https://www.python.org/static/community_logos/python-powered-w-100x40.png)](https://www.python.org)
 
 >**Navgator** is a multi-paned multi-tabbed file manager
 
+**New in v0.2.0**
+```sh
++ Aliases
+```
+
+```sh
 + Multi Pane Browser
 + Multiple tabs can be opened in each pane
 + Individual Tree per Pane and Common Tree across Panes
@@ -49,6 +57,7 @@
 + Main Tree, Panes and Status Bar can be hidden
 + Double click on empty space or non-name columns to go up.
 + Remembers and restores previous session
+```
 
 ### Installation
 

@@ -126,6 +126,38 @@ class NavPane(QtWidgets.QFrame):
     def go_to(self):
         """Handles address bar navigation."""
         loc = self.abar.text().replace('\\', '/')
+        loc = loc.strip()
+        if loc.startswith("@"):
+            if "=" in loc:  # alias is being set
+                alias, actual = loc.split("=", maxsplit=1)
+                alias = alias.strip()
+                actual = actual.strip()
+                if actual == "":
+                    try:
+                        del Nav.conf["aliases"][alias]
+                        logger.debug(f"Alias: {alias} unset")
+                        Pub.notify("App", f"{self.pid}: Alias {alias} unset.",
+                                   5000)
+                    except KeyError:
+                        pass
+                else:
+                    try:
+                        Nav.conf["aliases"][alias] = actual
+                    except KeyError:
+                        Nav.conf["aliases"] = {alias: actual}
+                    logger.debug(f"Alias: {alias} = {actual}")
+                    Pub.notify("App", f"{self.pid}: Alias {alias} set to " \
+                               f"{actual}.", 5000)
+                self.abar.setText(self.location)
+                return
+            else:  # resolve alias
+                try:
+                    loc = Nav.conf["aliases"][loc]
+                except KeyError:
+                    logger.error(f"Alias {loc} not set")
+                    Pub.notify("App", f"{self.pid}: Alias {loc} not set.")
+                    self.abar.setText(self.location)
+                    return
         ret = self.tabbar.currentWidget().tab.navigate(loc)
         self.sb.showMessage(self.tabbar.currentWidget().tab.status_info)
         if ret:

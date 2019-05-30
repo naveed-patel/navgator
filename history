@@ -1,3 +1,13 @@
++ Aliases / Bookmarks
+    > In address bar: @home=/home/naveed will set the alias
+    > Type @home and it will take you to /home/naveed
+    > Type @home= to unset the alias
+* Status info wasn't refreshed when changing directories. Fixed.
+* Status info was reducing dir count on file deletion. File count and size 
+  wasn't reduced. Fixed.
+* Visible panes are now checked in settings dialog. Checking them won't have 
+  any difference though.
+
 v0.1.0 2019-05-21 23:00 BST
 ++++ Navgator - a multi-paned multi-tabbed file browser
 + Multi Pane Browser
