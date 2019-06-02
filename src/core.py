@@ -1,6 +1,8 @@
 import os
 import pathlib
 from enum import IntFlag
+from PyQt5 import QtWidgets
+# from .helper import logger
 
 
 class Nav:
@@ -13,13 +15,14 @@ class Nav:
     conf_file = os.path.join(str(pathlib.Path.home()), "navgator.json")
 
     conf = {
-            "panes": {"total": 4, "active": "Pane 1", },
-            "window": {"main_tree": True, "statusbar": True},
-            "history_without_dupes": True,
-            "sort_folders_first": True,
-            "watch_all_tabs": True,
-            "shortcuts": {"back": "backspace", },
-        }
+        "panes": {"total": 4, "active": "Pane 1", },
+        "window": {"main_tree": True, "statusbar": True},
+        "history_without_dupes": True,
+        "sort_folders_first": True,
+        "watch_all_tabs": True,
+        "shortcuts": {"back": "backspace", },
+        "colors": {"bcbar": {"active": "blue", "inactive": "green"}},
+    }
 
     @classmethod
     def getsizes(cls, k, min, defaults):
@@ -33,6 +36,23 @@ class Nav:
         except Exception:
             cls.conf["dims"][k] = defaults
         return cls.conf["dims"][k]
+
+    @classmethod
+    def build_menu(cls, parent, d: dict, menu: QtWidgets.QMainWindow.menuBar):
+        """Build up the menu recursively."""
+        if isinstance(d, list):
+            for v in d:
+                if isinstance(v, QtWidgets.QAction):
+                    menu.addAction(v)
+                elif isinstance(v, dict):
+                    if "sm" in v:
+                        m2 = menu.addMenu(v["caption"])
+                        cls.build_menu(parent, v["sm"], m2)
+        elif isinstance(d, dict):
+            for k, v in d.items():
+                if "sm" in v:
+                    m2 = menu.addMenu(v["caption"])
+                    cls.build_menu(parent, v["sm"], m2)
 
 
 class NavStates(IntFlag):

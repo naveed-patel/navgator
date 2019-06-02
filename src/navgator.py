@@ -42,6 +42,7 @@ class Navgator(QtWidgets.QMainWindow):
             x, y, w, h = Nav.conf["dims"]["main"]
         self.setGeometry(x, y, w, h)
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
+        self.define_actions()
         self.sb = self.statusBar()
         self.update_sb.connect(self.status_bar_update)
         self.main_widget = QtWidgets.QWidget(self)
@@ -84,20 +85,17 @@ class Navgator(QtWidgets.QMainWindow):
                 p.hide()
             self.panes.append(p)
 
+            self.stylesheet = ("QTabBar::tab:selected {{background: {bg};}}"
+                               "NavBreadCrumbsBar{{background-color: {bg};}}"
+                               "QTabWidget::pane {{border: 0px;}}")
             if Nav.conf["panes"]["active"] == name:
                 self.active_pane = p
-                p.tabbar.setStyleSheet('''
-                    QTabBar::tab:selected {background: blue;}
-                    NavBreadCrumbsBar{background-color: blue;}
-                    QTabWidget::pane {border: 0px;}
-                    ''')
+                p.tabbar.setStyleSheet(self.stylesheet.format(
+                    bg=Nav.conf["colors"]["bcbar"]["active"]))
                 self.setWindowTitle(f"{self.title} - {name}")
             else:
-                p.tabbar.setStyleSheet(
-                    '''QTabBar::tab:selected {background: green;}
-                    NavBreadCrumbsBar{background-color: green;}
-                    QTabWidget::pane {border: 0px;}
-                    ''')
+                p.tabbar.setStyleSheet(self.stylesheet.format(
+                    bg=Nav.conf["colors"]["bcbar"]["inactive"]))
         self.splitter.addWidget(self.splitter1)
         self.splitter.addWidget(self.splitter2)
         self.splitter.setSizes(
@@ -113,6 +111,7 @@ class Navgator(QtWidgets.QMainWindow):
         self.setCentralWidget(self.main_widget)
         self.show()
         # self.mainThreadID = QtCore.QThread.currentThread().currentThreadId()
+        # Focus active pane and tab
         self.active_pane.tabbar.currentWidget().tab.setFocus()
         if Nav.conf["window"]["statusbar"]:
             Pub.subscribe("App", self.update_status_bar)
@@ -121,47 +120,15 @@ class Navgator(QtWidgets.QMainWindow):
         else:
             self.sb.hide()
 
-    def create_toolbar(self):
-        """Creates a toolbar."""
-        toolbar = self.addToolBar("Main")
-        back = QtWidgets.QAction(
-                self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack),
-                "Back", self)
-        back.triggered.connect(
-            lambda: self.active_pane.tabbar.currentWidget().tab.go_back())
-        toolbar.addAction(back)
-        forward = QtWidgets.QAction(
-                self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward),
-                "Forward", self)
-        forward.triggered.connect(
-            lambda: self.active_pane.tabbar.currentWidget().tab.go_forward())
-        toolbar.addAction(forward)
-
-    def create_menu(self):
-        """Creates menu recursively."""
-        # Python 3.7 tracks insertion order
-        items = {
-            "file": {"caption": "&File"},
-            "edit": {"caption": "&Edit"},
-            "tabs": {"caption": "&Tabs"},
-            "user": {"caption": "&User", "sm": {}},
-            "window": {"caption": "&Window", "sm": {}}
-        }
-
-        if "user_commands" not in Nav.conf:
-            del items["user"]
-
-        items["file"]["sm"] = {
+    def define_actions(self):
+        self.actions = {
             "exit": {
                 "caption": "E&xit",
                 "icon": QtGui.QIcon.fromTheme('file-exit'),
                 "shortcut": "Ctrl+Q",
                 "triggered": self.close,
                 "statusTip": "Exit application",
-            }
-        }
-
-        items["edit"]["sm"] = {
+            },
             "rename": {
                 "caption": "&Rename",
                 "shortcut": "F2",
@@ -218,77 +185,70 @@ class Navgator(QtWidgets.QMainWindow):
                               currentWidget().tab.new_file("folder")),
                 "icon": self.style().standardIcon(QtWidgets.QStyle.SP_DirIcon),
             },
-            "selections": {
-                "caption": "&Selections",
-                "sm": {
-                    "select_all": {
-                        "caption": "&Select All",
-                        "shortcut": "Ctrl+A",
-                        "triggered": (lambda: self.active_pane.tabbar.
-                                      currentWidget().tab.selectColumn(0)),
-                    },
-                    "clear_all": {
-                        "caption": "&Clear All",
-                        "shortcut": "Ctrl+Shift+A",
-                        "triggered": (lambda: self.active_pane.tabbar.
-                                      currentWidget().tab.clearSelection()),
-                    },
-                    "invert": {
-                        "caption": "&Invert Select",
-                        "shortcut": "Ctrl+Shift+I",
-                        "triggered": (lambda: self.active_pane.tabbar.
-                                      currentWidget().tab.invert_selection()),
-                    }
-                }
-            }
-        }
-
-        items["tabs"]["sm"] = {
+            "select_all": {
+                "caption": "&Select All",
+                "shortcut": "Ctrl+A",
+                "triggered": (lambda: self.active_pane.tabbar.
+                              currentWidget().tab.selectColumn(0)),
+            },
+            "clear_all": {
+                "caption": "&Clear All",
+                "shortcut": "Ctrl+Shift+A",
+                "triggered": (lambda: self.active_pane.tabbar.
+                              currentWidget().tab.clearSelection()),
+            },
+            "invert": {
+                "caption": "&Invert Select",
+                "shortcut": "Ctrl+Shift+I",
+                "triggered": (lambda: self.active_pane.tabbar.
+                              currentWidget().tab.invert_selection()),
+            },
             "new_tab": {
                 "caption": "&New Tab",
                 "shortcut": "Ctrl+T",
-                "triggered": (lambda: self.active_pane.new_tab()),
+                "triggered": (lambda: self.active_pane.tabbar.new_tab()),
             },
             "close_tab": {
                 "caption": "&Close Tab",
                 "shortcut": "Ctrl+W",
-                "triggered": (lambda: self.active_pane.close_tab(
+                "triggered": (lambda: self.active_pane.tabbar.close_tab(
                     self.active_pane.tabbar.currentIndex())),
             },
             "rename_tab": {
                 "caption": "&Rename Tab",
                 "shortcut": "Ctrl+E",
-                "triggered": (lambda: self.active_pane.rename_tab(
-                    self.active_pane.tabbar.currentIndex())),
+                "triggered": (lambda:
+                              self.active_pane.tabbar.set_caption(
+                                self.active_pane.tabbar.currentIndex(),
+                                rename=True)),
             },
             "next_tab": {
                 "caption": "Ne&xt Tab",
                 "shortcut": "Ctrl+Tab",
-                "triggered": (lambda: self.active_pane.select_tab("next")),
+                "triggered": (lambda: self.active_pane.tabbar.select_tab(
+                                      "next")),
             },
             "prev_tab": {
                 "caption": "Pre&vious Tab",
                 "shortcut": "Ctrl+Shift+Tab",
-                "triggered": (lambda: self.active_pane.select_tab("prev")),
+                "triggered": (lambda: self.active_pane.tabbar.select_tab(
+                                      "prev")),
             },
             "close_other_tabs": {
                 "caption": "Close &Other Tabs",
-                "triggered": (lambda: self.active_pane.close_other_tabs()),
+                "triggered": (lambda: self.active_pane.tabbar.
+                              close_other_tabs()),
             },
             "close_left_tabs": {
                 "caption": "Close &Left Tabs",
-                "triggered": (lambda: self.active_pane.close_left_tabs()),
+                "triggered": (lambda: self.active_pane.tabbar.
+                              close_left_tabs()),
             },
             "close_right_tabs": {
                 "caption": "Close &Right Tabs",
-                "triggered": (lambda: self.active_pane.close_right_tabs()),
+                "triggered": (lambda: self.active_pane.tabbar.
+                              close_right_tabs()),
             },
-        }
-        pane_count = Nav.conf["panes"]["total"]
-        if pane_count > 4:
-            pane_count = 4
-        items2 = {f"Pane {i}": None for i in range(1, pane_count + 1)}
-        items["window"]["sm"] = {
             "maintree": {
                 "caption": "&Main Tree",
                 "checkable": True,
@@ -297,7 +257,6 @@ class Navgator(QtWidgets.QMainWindow):
                 "triggered": self.tree_toggle,
                 "icon": self.style().standardIcon(QtWidgets.QStyle.SP_FileIcon)
             },
-            **items2,
             "settings": {
                 "caption": "&Settings",
                 "shortcut": "F9",
@@ -311,18 +270,95 @@ class Navgator(QtWidgets.QMainWindow):
             }
         }
 
+        pane_count = Nav.conf["panes"]["total"]
+        if pane_count > 4:
+            pane_count = 4
+        # items2 = {f"Pane {i}": None for i in range(1, pane_count + 1)}
         for i in range(1, pane_count + 1):
             name = f"Pane {i}"
-            items["window"]["sm"][name] = {
+            self.actions[name] = {
                 "caption": f"Pane &{i}",
                 "checkable": True,
                 "checked": Nav.conf["panes"][name]["visible"],
                 "triggered": (lambda a=0, ind=i, name1=name: self.pane_toggle(
                               ind, name1)),
             }
+        Nav.actions = {}
+        for k, v in self.actions.items():
+            cap = v.pop("caption")  # caption isn't valid keyword arg
+            Nav.actions[k] = QtWidgets.QAction(cap, self, **v)
+            if k in Nav.conf["shortcuts"]:
+                Nav.actions[k].setShortcut(Nav.conf["shortcuts"][k])
+
+    def create_toolbar(self):
+        """Creates a toolbar."""
+        toolbar = self.addToolBar("Main")
+        back = QtWidgets.QAction(
+                self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack),
+                "Back", self)
+        back.triggered.connect(
+            lambda: self.active_pane.tabbar.currentWidget().tab.go_back())
+        toolbar.addAction(back)
+        forward = QtWidgets.QAction(
+                self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward),
+                "Forward", self)
+        forward.triggered.connect(
+            lambda: self.active_pane.tabbar.currentWidget().tab.go_forward())
+        toolbar.addAction(forward)
+
+    def create_menu(self):
+        """Creates menu recursively."""
+        # Python 3.7 tracks insertion order
+        items = {
+            "file": {"caption": "&File"},
+            "edit": {"caption": "&Edit"},
+            "tabs": {"caption": "&Tabs"},
+            "user": {"caption": "&User", "sm": {}},
+            "window": {"caption": "&Window", "sm": {}}
+        }
+
+        if "user_commands" not in Nav.conf:
+            del items["user"]
+
+        items["file"]["sm"] = [Nav.actions["exit"]]
+
+        items["edit"]["sm"] = [
+            Nav.actions["rename"], Nav.actions["cut"], Nav.actions["copy"],
+            Nav.actions["paste"], Nav.actions["trash"], Nav.actions["delete"],
+            Nav.actions["del_dir_up"], Nav.actions["new_file"],
+            Nav.actions["new_folder"],
+            {
+                "caption": "&Selections",
+                "sm": [
+                    Nav.actions["select_all"], Nav.actions["clear_all"],
+                    Nav.actions["invert"],
+                ]
+            }
+        ]
+
+        items["tabs"]["sm"] = [
+            Nav.actions["new_tab"], Nav.actions["close_tab"],
+            Nav.actions["rename_tab"],
+            Nav.actions["next_tab"], Nav.actions["prev_tab"],
+            Nav.actions["close_other_tabs"],
+            Nav.actions["close_left_tabs"], Nav.actions["close_right_tabs"],
+        ]
+
+        pane_count = Nav.conf["panes"]["total"]
+        if pane_count > 4:
+            pane_count = 4
+
+        items["window"]["sm"] = [Nav.actions[f"Pane {i}"]
+                                 for i in range(1, pane_count + 1)]
+
+        items["window"]["sm"] += [
+            Nav.actions["maintree"], Nav.actions["settings"],
+            Nav.actions["statusbar"],
+        ]
 
         self.expose_shortcuts(items)
-        self.build_menu(items, self.menubar)
+        self.menubar.clear()
+        Nav.build_menu(self, items, self.menubar)
         del items
 
         for m in self.menubar.findChildren(QtWidgets.QMenu):
@@ -341,19 +377,6 @@ class Navgator(QtWidgets.QMainWindow):
                         Nav.conf["shortcuts"][k] = v["shortcut"]
                     except KeyError:
                         pass
-
-    def build_menu(self, d: dict, menu: QtWidgets.QMainWindow.menuBar):
-        """Build up the menu recursively."""
-        for k, v in d.items():
-            if "sm" in v:
-                m2 = menu.addMenu(v["caption"])
-                self.build_menu(v["sm"], m2)
-            else:
-                cap = v.pop("caption")
-                act = QtWidgets.QAction(cap, self, **v)
-                if k in Nav.conf["shortcuts"]:
-                    act.setShortcut(Nav.conf["shortcuts"][k])
-                menu.addAction(act)
 
     def create_user_menu(self, user_menu: QtWidgets.QMainWindow.menuBar):
         """Builds up the user menu based on provided user commands."""
@@ -425,12 +448,23 @@ class Navgator(QtWidgets.QMainWindow):
     def show_settings(self):
         """Displays the settings window."""
         setting = NavSettings(self)
+        setting.settings_changed.connect(self.settings_changed)
         setting.show()
+
+    def settings_changed(self):
+        logger.debug("settings were changed")
+        self.create_menu()
+        # for k in Nav.conf:
+        #    if k == "panes":
 
     def closeEvent(self, event):
         """Save and exit application."""
         self.save_settings()
         QtWidgets.QMainWindow.closeEvent(self, event)
+
+    def contextMenuEvent(self, event):
+        child = self.childAt(event.pos())
+        logger.debug(f"Context menu requested on {child}")
 
     def save_settings(self):
         """Saves application settings to reload later on."""
@@ -457,7 +491,7 @@ class Navgator(QtWidgets.QMainWindow):
                         "location": tab.location,
                         "history": list(tab.history),
                         "future": list(tab.future),
-                        "caption": tab.caption,
+                        "caption": self.panes[p].tabbar.tabBar().tabData(j),
                         "sort_column": tab.sort_column,
                         "sort_order": tab.sort_order,
                 }
@@ -484,18 +518,12 @@ class Navgator(QtWidgets.QMainWindow):
     def active_pane_changed(self, obj):
         """Handles pane change event."""
         if self.active_pane.pid != obj.pid:
-            self.active_pane.tabbar.setStyleSheet(
-                    '''QTabBar::tab:selected {background: green;}
-                    NavBreadCrumbsBar{background-color: green;}
-                    QTabWidget::pane {border: 0px;}
-                    ''')
+            self.active_pane.tabbar.setStyleSheet(self.stylesheet.format(
+                bg=Nav.conf["colors"]["bcbar"]["inactive"]))
             self.active_pane = obj
             self.setWindowTitle(f"{self.title} - {obj.pid}")
-            self.active_pane.tabbar.setStyleSheet(
-                    '''QTabBar::tab:selected {background: blue;}
-                    NavBreadCrumbsBar{background-color: blue;}
-                    QTabWidget::pane {border: 0px;}
-                    ''')
+            self.active_pane.tabbar.setStyleSheet(self.stylesheet.format(
+                bg=Nav.conf["colors"]["bcbar"]["active"]))
 
     def update_status_bar(self, msg: str, duration: int = 2000):
         """Signals to update main status bar."""
@@ -527,12 +555,13 @@ def exception_hook(exctype, val, trcbk):
     sys._excepthook(exctype, val, trcbk)
     sys.exit(1)
 
+
 def main(args=None):
     if args is None:
         args = sys.argv[1:]
         logger.debug(args)
     sys._excepthook = sys.excepthook
-    app = NavApp(args)
+    NavApp(args)
 
 
 if __name__ == '__main__':

@@ -4,26 +4,23 @@ from .core import Nav
 
 
 class NavSettings(QtWidgets.QDialog):
+    settings_changed = QtCore.pyqtSignal()
+
     def __init__(self, parent=None):
         super().__init__(parent)
         preflist = QtWidgets.QListWidget()
-        preflist.insertItem(0, "General")
-        preflist.insertItem(1, "Panes")
-
         self.stack = QtWidgets.QStackedWidget()
-        self.genSet = QtWidgets.QWidget()
-        self.genSetUI()
-
-        self.paneSet = QtWidgets.QWidget()
-        self.paneSetUI()
-
-        self.stack.addWidget(self.genSet)
-        self.stack.addWidget(self.paneSet)
+        self.set_items = ["General", "Panes",  # Tabs", "Sorting", "Renaming",
+                          # "Colors",
+                          ]
+        for item in self.set_items:
+            preflist.addItem(item)
+            self.set_ui(item)
 
         applyButton = QtWidgets.QPushButton('Apply')
         applyButton.clicked.connect(self.apply)
         okButton = QtWidgets.QPushButton('OK')
-        okButton.clicked.connect(self.hide)
+        okButton.clicked.connect(self.ok)
         cancelButton = QtWidgets.QPushButton('Cancel')
         cancelButton.clicked.connect(self.hide)
 
@@ -38,43 +35,47 @@ class NavSettings(QtWidgets.QDialog):
         preflist.currentRowChanged.connect(self.display)
         self.sizeHint()
 
-
-    def genSetUI(self):
+    def set_ui(self, item):
         layout = QtWidgets.QHBoxLayout()
-        folders_first = QtWidgets.QCheckBox("Sort folders first")
-        if Nav.conf["sort_folders_first"]:
-            folders_first.setChecked(True)
-        layout.addWidget(folders_first)
-        self.genSet.setLayout(layout)
-
-    def paneSetUI(self):
-        layout = QtWidgets.QHBoxLayout()
-        for i in range(1, 5):
-            name = f"Pane {i}"
-            pane_cb = QtWidgets.QCheckBox(name)
-            if Nav.conf["panes"][name]["visible"]:
-                pane_cb.setChecked(True)
-            layout.addWidget(pane_cb)
-        self.paneSet.setLayout(layout)
+        stacks = QtWidgets.QWidget()
+        if item == "General":
+            folders_first = QtWidgets.QCheckBox("Sort folders first")
+            if Nav.conf["sort_folders_first"]:
+                folders_first.setChecked(True)
+            layout.addWidget(folders_first)
+        elif item == "Panes":
+            for i in range(1, 5):
+                name = f"Pane {i}"
+                pane_cb = QtWidgets.QCheckBox(name)
+                if Nav.conf["panes"][name]["visible"]:
+                    pane_cb.setChecked(True)
+                layout.addWidget(pane_cb)
+        stacks.setLayout(layout)
+        self.stack.addWidget(stacks)
 
     def apply(self):
-        for widget in self.genSet.children():
-            # if isinstance(widget, QtWidgets.QLineEdit):
-            # logger.debug(f"linedit: {widget.objectName()} - {widget.text()}")
+        for c in self.stack.children():
+            for widget in c.children():
+                if isinstance(widget, QtWidgets.QCheckBox):
+                    logger.debug(f"CB: {widget.text()}-{widget.checkState()}")
+                    if widget.text() == "Sort folder to top":
+                        if widget.checkState():
+                            Nav.conf["sort_folders_first"] = True
+                        else:
+                            Nav.conf["sort_folders_first"] = False
+                        logger.debug(Nav.conf["sort_folders_first"])
 
-            if isinstance(widget, QtWidgets.QCheckBox):
-                logger.debug(f"CkBox: {widget.text()} - {widget.checkState()}")
-                if widget.text() == "Sort folder to top":
-                    if widget.checkState():
-                        Nav.conf["sort_folders_first"] = True
-                    else:
-                        Nav.conf["sort_folders_first"] = False
-                    logger.debug(Nav.conf["sort_folders_first"])
-                elif widget.text() in ["Pane 1", "Pane 2", "Pane 3", "Pane 4"]:
-                    if widget.checkState():
-                        Nav.conf["panes"][widget.text()]["visible"] = True
-                    else:
-                        Nav.conf["panes"][widget.text()]["visible"] = False
+                    if widget.text() in ["Pane 1", "Pane 2", "Pane 3",
+                                         "Pane 4"]:
+                        if widget.checkState():
+                            Nav.conf["panes"][widget.text()]["visible"] = True
+                        else:
+                            Nav.conf["panes"][widget.text()]["visible"] = False
+        self.settings_changed.emit()
+
+    def ok(self):
+        self.apply()
+        self.hide()
 
     def display(self, i):
         self.stack.setCurrentIndex(i)

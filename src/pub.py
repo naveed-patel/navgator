@@ -52,11 +52,11 @@ class Pub:
         val = Pub.sub
         topics = topic.split(".")
         for k in topics:
-            val = val[k]
-        try:
-            val["sub"].remove(fn)
-        except (KeyError, ValueError):
-            pass
+            try:
+                val = val[k]
+                val["sub"].remove(fn)
+            except (KeyError, ValueError):
+                pass
 
     @staticmethod
     def notify(event, *args, **kwargs):

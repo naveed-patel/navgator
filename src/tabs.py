@@ -24,6 +24,158 @@ class NavColumn:
     visible: bool = True
 
 
+class NavTabWidget(QtWidgets.QTabWidget):
+    """Re-implemented to present tab menu"""
+    cMenu = None  # common contextMenu across class
+
+    def __init__(self, parent, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.parent = parent
+        self.pid = self.parent.pid
+        if self.cMenu is None:
+            logger.debug("Creating context menu for tabbar")
+            self.__class__.cMenu = QtWidgets.QMenu()
+            items = [
+                Nav.actions["new_tab"], Nav.actions["close_tab"],
+                Nav.actions["rename_tab"],
+                Nav.actions["next_tab"], Nav.actions["prev_tab"],
+                Nav.actions["close_other_tabs"],
+                Nav.actions["close_left_tabs"],
+                Nav.actions["close_right_tabs"],
+            ]
+            Nav.build_menu(self, items, self.cMenu)
+
+    def new_tab(self, tab_info={}):
+        """Creates a new tab with default/provided values."""
+        logger.debug("requested new_tab")
+        t = NavTab(tab_info, parent_id=self.pid)
+        t.tab.location_changed.connect(self.update_gui_with_tab)
+        i = self.addTab(t, tab_info["location"])
+        self.set_caption(i, caption=t.tab.caption, loc=t.tab.location)
+        t.installEventFilter(self)  # install filter for new tabs
+
+    def update_gui_with_tab(self, loc):
+        """Updates GUI and sets tab caption to sync with navigations."""
+        cur_tab = self.currentIndex()
+        # caption = self.tabbar.widget(cur_tab).tab.caption
+        # logger.debug(caption)
+        self.set_caption(cur_tab, loc=loc)
+        self.currentWidget().bcbar.create_crumbs(loc)
+        self.currentChanged.emit(cur_tab)
+        # self.update_gui(loc)
+
+    def set_caption(self, index: int=None, caption: str=None,
+                    loc: str=None, rename: bool=False):
+        """Renames a tab with provided/prompted caption."""
+        if index is None:
+            index = self.currentIndex()
+        # logger.debug(f"Tab data: {self.tabBar().tabData(index)}")
+        if not caption:
+            if rename:
+                current_caption = self.tabText(index)
+                caption, ok = QtWidgets.QInputDialog.getText(
+                                self, 'Rename Tab', 'Enter new caption:',
+                                QtWidgets.QLineEdit.Normal, current_caption)
+                if not ok:
+                    return
+                self.tabBar().setTabData(index, caption)
+            if not caption:
+                if loc is None:
+                    loc = self.tabToolTip(index)
+                if self.tabBar().tabData(index):
+                    self.setTabToolTip(index, loc)
+                    return
+                caption = os.path.basename(loc)
+                if caption == "":
+                    caption = "/"
+        else:
+            self.tabBar().setTabData(index, caption)
+        self.setTabText(index, caption)
+        if loc is not None:
+            self.setTabToolTip(index, loc)
+
+    def contextMenuEvent(self, event):
+        """Presents a context menu at mouse position."""
+        tab = self.tabBar().tabAt(event.pos())
+        if tab < 0:
+            return
+        action = self.cMenu.exec_(event.globalPos())
+        logger.debug(f"Mouse is on tab# {self.tabBar().tabAt(event.pos())}")
+        if not action:
+            return
+        act = action.text().replace("&", "")
+        if act == "Rename Tab":
+            logger.debug("this was preferred")
+            self.set_caption(self.tabBar().tabAt(event.pos()), rename=True,)
+        elif act == "Close Tab":
+            self.removeTab(self.tabBar().tabAt(event.pos()))
+        # elif act == "New Tab":
+        #     self.new_tab()
+        elif act == "Close Left Tabs":
+            self.close_left_tabs()
+        elif act == "Close Right Tabs":
+            self.close_right_tabs()
+        elif act == "Next Tab":
+            self.select_tab("next")
+        elif act == "Previous Tab":
+            self.select_tab("prev")
+
+    def select_tab(self, index):
+        """Select next/previous or the mentioned tab."""
+        if index == "next":
+            index = self.currentIndex() + 1
+        elif index == "prev":
+            index = self.currentIndex() - 1
+        index = index % self.count()
+        self.setCurrentIndex(index)
+
+    def close_tab(self, index=None):
+        """Close current/provided tab."""
+        if self.count() == 1:
+            self.setTabsClosable(False)
+            Pub.notify(f"App.{self.pid}.Tabs",
+                       f"{self.pid}: Can't close last tab.")
+            return
+        else:
+            self.setTabsClosable(True)
+        if index is None:
+            index = self.currentIndex()
+        widget = self.widget(index)
+        if widget is not None:
+            widget.deleteLater()
+        self.removeTab(index)
+        logger.debug(f"Removed tab {index}")
+
+    def close_other_tabs(self):
+        """Closes all tabs except the current tab."""
+        for index in range(self.count(), -1, -1):
+            if index != self.currentIndex():
+                self.close_tab(index)
+        Pub.notify(f"App.{self.pid}.Tabs",
+                   f"{self.pid}: All other tabs closed")
+
+    def close_left_tabs(self):
+        """Close tabs to the left of the current tab."""
+        for index in range(self.currentIndex()-1, -1, -1):
+            self.close_tab(index)
+        Pub.notify(f"App.{self.pid}.Tabs", f"{self.pid}: Left tabs closed")
+
+    def close_right_tabs(self):
+        """Close tabs to the right of the current tab."""
+        for index in range(self.count(),
+                           self.currentIndex(), -1):
+            self.close_tab(index)
+        Pub.notify(f"App.{self.pid}.Tabs", f"{self.pid}: Right tabs closed")
+
+    def mousePressEvent(self, event):
+        """Re-implement to capture the index at mouse position."""
+        if event.button() == QtCore.Qt.RightButton:
+            index = self.tabBar().tabAt(event.pos())
+            self.rc_on = index
+        else:
+            super().mousePressEvent(event)
+
+
 class NavTab(QtWidgets.QFrame):
     """Class to handle base skeleton for tabs."""
     location_changed = QtCore.pyqtSignal(str)
@@ -174,7 +326,6 @@ class NavList(QtWidgets.QTableView):
                 self.history.remove(self.location)
             self.history.append(self.location)
             self.load_tab(d)
-            self.history = self.history[-63:]
             self.future.clear()
 
     def go_back(self):

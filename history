@@ -1,3 +1,9 @@
+v0.2.1 2019-06-03 00:08 BST
++ BreadCrumbs bar and active tab can now be customised. JSON only.
++ ContextMenu is available on tab right click
+* Crash on navigating after launching new tab. Fixed.
+
+v0.2.0 2019-05-30 19:30 BST
 + Aliases / Bookmarks
     > In address bar: @home=/home/naveed will set the alias
     > Type @home and it will take you to /home/naveed
