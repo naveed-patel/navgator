@@ -1,3 +1,6 @@
+v0.2.2 2019-06-03 20:24 BST
+* Inactive tab context menu actioned on active tab. Fixed.
+
 v0.2.1 2019-06-03 00:08 BST
 + BreadCrumbs bar and active tab can now be customised. JSON only.
 + ContextMenu is available on tab right click

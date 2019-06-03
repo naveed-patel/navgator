@@ -211,16 +211,13 @@ class Navgator(QtWidgets.QMainWindow):
             "close_tab": {
                 "caption": "&Close Tab",
                 "shortcut": "Ctrl+W",
-                "triggered": (lambda: self.active_pane.tabbar.close_tab(
-                    self.active_pane.tabbar.currentIndex())),
+                "triggered": (lambda: self.active_pane.tabbar.close_tab()),
             },
             "rename_tab": {
                 "caption": "&Rename Tab",
                 "shortcut": "Ctrl+E",
-                "triggered": (lambda:
-                              self.active_pane.tabbar.set_caption(
-                                self.active_pane.tabbar.currentIndex(),
-                                rename=True)),
+                "triggered": (lambda: self.active_pane.tabbar.set_caption(
+                              rename=True)),
             },
             "next_tab": {
                 "caption": "Ne&xt Tab",

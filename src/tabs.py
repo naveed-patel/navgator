@@ -38,7 +38,6 @@ class NavTabWidget(QtWidgets.QTabWidget):
             items = [
                 Nav.actions["new_tab"], Nav.actions["close_tab"],
                 Nav.actions["rename_tab"],
-                Nav.actions["next_tab"], Nav.actions["prev_tab"],
                 Nav.actions["close_other_tabs"],
                 Nav.actions["close_left_tabs"],
                 Nav.actions["close_right_tabs"],
@@ -57,18 +56,15 @@ class NavTabWidget(QtWidgets.QTabWidget):
     def update_gui_with_tab(self, loc):
         """Updates GUI and sets tab caption to sync with navigations."""
         cur_tab = self.currentIndex()
-        # caption = self.tabbar.widget(cur_tab).tab.caption
-        # logger.debug(caption)
         self.set_caption(cur_tab, loc=loc)
         self.currentWidget().bcbar.create_crumbs(loc)
         self.currentChanged.emit(cur_tab)
-        # self.update_gui(loc)
 
     def set_caption(self, index: int=None, caption: str=None,
                     loc: str=None, rename: bool=False):
         """Renames a tab with provided/prompted caption."""
         if index is None:
-            index = self.currentIndex()
+            index = self.get_index()
         # logger.debug(f"Tab data: {self.tabBar().tabData(index)}")
         if not caption:
             if rename:
@@ -99,26 +95,15 @@ class NavTabWidget(QtWidgets.QTabWidget):
         tab = self.tabBar().tabAt(event.pos())
         if tab < 0:
             return
-        action = self.cMenu.exec_(event.globalPos())
+        self.cMenu.exec_(event.globalPos())
         logger.debug(f"Mouse is on tab# {self.tabBar().tabAt(event.pos())}")
-        if not action:
-            return
-        act = action.text().replace("&", "")
-        if act == "Rename Tab":
-            logger.debug("this was preferred")
-            self.set_caption(self.tabBar().tabAt(event.pos()), rename=True,)
-        elif act == "Close Tab":
-            self.removeTab(self.tabBar().tabAt(event.pos()))
-        # elif act == "New Tab":
-        #     self.new_tab()
-        elif act == "Close Left Tabs":
-            self.close_left_tabs()
-        elif act == "Close Right Tabs":
-            self.close_right_tabs()
-        elif act == "Next Tab":
-            self.select_tab("next")
-        elif act == "Previous Tab":
-            self.select_tab("prev")
+
+    def get_index(self, depth=3):
+        """Gets index for actioning tab."""
+        if sys._getframe(depth).f_back.f_code.co_name == "__init__":
+            return self.rc_on
+        else:
+            return self.currentIndex()
 
     def select_tab(self, index):
         """Select next/previous or the mentioned tab."""
@@ -139,32 +124,37 @@ class NavTabWidget(QtWidgets.QTabWidget):
         else:
             self.setTabsClosable(True)
         if index is None:
-            index = self.currentIndex()
+            index = self.get_index()
         widget = self.widget(index)
         if widget is not None:
             widget.deleteLater()
         self.removeTab(index)
         logger.debug(f"Removed tab {index}")
 
-    def close_other_tabs(self):
-        """Closes all tabs except the current tab."""
-        for index in range(self.count(), -1, -1):
-            if index != self.currentIndex():
-                self.close_tab(index)
+    def close_other_tabs(self, index=None):
+        """Closes all tabs except this."""
+        if index is None:
+            index = self.get_index()
+        for ind in range(self.count(), -1, -1):
+            if ind != index:
+                self.close_tab(ind)
         Pub.notify(f"App.{self.pid}.Tabs",
                    f"{self.pid}: All other tabs closed")
 
-    def close_left_tabs(self):
-        """Close tabs to the left of the current tab."""
-        for index in range(self.currentIndex()-1, -1, -1):
-            self.close_tab(index)
+    def close_left_tabs(self, index=None):
+        """Close tabs to the left."""
+        if index is None:
+            index = self.get_index()
+        for ind in range(index-1, -1, -1):
+            self.close_tab(ind)
         Pub.notify(f"App.{self.pid}.Tabs", f"{self.pid}: Left tabs closed")
 
-    def close_right_tabs(self):
-        """Close tabs to the right of the current tab."""
-        for index in range(self.count(),
-                           self.currentIndex(), -1):
-            self.close_tab(index)
+    def close_right_tabs(self, index=None):
+        """Close tabs to the right."""
+        if index is None:
+            index = self.get_index()
+        for ind in range(self.count(), index, -1):
+            self.close_tab(ind)
         Pub.notify(f"App.{self.pid}.Tabs", f"{self.pid}: Right tabs closed")
 
     def mousePressEvent(self, event):
