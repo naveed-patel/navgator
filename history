@@ -1,3 +1,8 @@
+v0.2.3 2019-06-04 21:55 BST
++ ContextMenu for BreadCrumbs.
++ New Command: Copy Path (Ctrl+Shift+P) available in BC Bar ContextMenu
++ New Commands: Paste and Go (Ctrl+Shift+G) available in BC Bar ContextMenu
+
 v0.2.2 2019-06-03 20:24 BST
 * Inactive tab context menu actioned on active tab. Fixed.
 

@@ -344,6 +344,9 @@ class NavList(QtWidgets.QTableView):
         except IndexError:
             logger.error(f"No more forward")
 
+    def latest_history(self):
+        return self.history[0]
+
     def rows_selected(self, sel, desel):
         """Handle row (de)selections."""
         # logger.debug(f"Caller: {sys._getframe().f_back.f_code.co_name}")
@@ -463,6 +466,11 @@ class NavList(QtWidgets.QTableView):
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         if loc is None:
             loc = self.location
+        elif loc != self.location:
+            if not os.path.isdir(loc):
+                logger.debug(f"{loc} isn't a directory")
+                Pub.notify("App", f"{loc} isn't a directory.")
+                return
         if (forced and self._loading is False) or loc != self.location \
                 or self.vmod.last_read < os.stat(loc).st_mtime:
             if not forced:

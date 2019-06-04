@@ -129,6 +129,21 @@ class Navgator(QtWidgets.QMainWindow):
                 "triggered": self.close,
                 "statusTip": "Exit application",
             },
+            "back": {
+                "caption": "Go &Back",
+                "icon": self.style().standardIcon(
+                    QtWidgets.QStyle.SP_ArrowBack),
+                "shortcut": "Backspace",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              tab.go_back()),
+            },
+            "forward": {
+                "caption": "Go &Forward",
+                "icon": self.style().standardIcon(
+                    QtWidgets.QStyle.SP_ArrowForward),
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              tab.go_forward())
+            },
             "rename": {
                 "caption": "&Rename",
                 "shortcut": "F2",
@@ -264,6 +279,18 @@ class Navgator(QtWidgets.QMainWindow):
                 "checkable": True,
                 "checked": Nav.conf["window"]["statusbar"],
                 "triggered": self.statusbar_toggle,
+            },
+            "copy_path": {
+                "caption": "&Copy Path",
+                "shortcut": "Ctrl+Shift+P",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              bcbar.copy_path()),
+            },
+            "paste_and_go": {
+                "caption": "&Paste and Go",
+                "shortcut": "Ctrl+Shift+G",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              bcbar.paste_and_go()),
             }
         }
 
@@ -286,22 +313,13 @@ class Navgator(QtWidgets.QMainWindow):
             Nav.actions[k] = QtWidgets.QAction(cap, self, **v)
             if k in Nav.conf["shortcuts"]:
                 Nav.actions[k].setShortcut(Nav.conf["shortcuts"][k])
+            self.addAction(Nav.actions[k])
 
     def create_toolbar(self):
         """Creates a toolbar."""
         toolbar = self.addToolBar("Main")
-        back = QtWidgets.QAction(
-                self.style().standardIcon(QtWidgets.QStyle.SP_ArrowBack),
-                "Back", self)
-        back.triggered.connect(
-            lambda: self.active_pane.tabbar.currentWidget().tab.go_back())
-        toolbar.addAction(back)
-        forward = QtWidgets.QAction(
-                self.style().standardIcon(QtWidgets.QStyle.SP_ArrowForward),
-                "Forward", self)
-        forward.triggered.connect(
-            lambda: self.active_pane.tabbar.currentWidget().tab.go_forward())
-        toolbar.addAction(forward)
+        toolbar.addAction(Nav.actions["back"])
+        toolbar.addAction(Nav.actions["forward"])
 
     def create_menu(self):
         """Creates menu recursively."""

@@ -1,6 +1,8 @@
 import os
 import pathlib
 from PyQt5 import QtGui, QtCore, QtWidgets
+from .core import Nav
+from .helper import logger
 
 
 class NavBreadCrumbMenu(QtWidgets.QLabel):
@@ -76,6 +78,7 @@ class NavBreadCrumb(QtWidgets.QLabel):
 class NavBreadCrumbsBar(QtWidgets.QFrame):
     """A simple class to serve a breadcrumbs bar"""
     clicked = QtCore.pyqtSignal("QString")
+    cMenu = None  # common contextMenu across class
 
     def __init__(self, loc=None):
         super().__init__()
@@ -85,6 +88,13 @@ class NavBreadCrumbsBar(QtWidgets.QFrame):
         self.setLayout(lyt)
         self.setSizePolicy(QtWidgets.QSizePolicy.Ignored,
                            QtWidgets.QSizePolicy.Fixed)
+        if self.cMenu is None:
+            self.__class__.cMenu = QtWidgets.QMenu()
+            items = [
+                Nav.actions["copy_path"],
+                Nav.actions["paste_and_go"],
+            ]
+            Nav.build_menu(self, items, self.cMenu)
         if loc:
             self.create_crumbs(loc)
 
@@ -136,3 +146,17 @@ class NavBreadCrumbsBar(QtWidgets.QFrame):
     def crumb_clicked(self, loc):
         """Emits a clicked event with location to navigate to."""
         self.clicked.emit(loc)
+
+    def copy_path(self):
+        clipboard = QtWidgets.QApplication.clipboard()
+        clipboard.setText(self.cwd)
+
+    def paste_and_go(self):
+        clip = QtWidgets.QApplication.clipboard().text()
+        # if os.path.isdir(clip):
+        self.clicked.emit(clip)
+        
+
+    def contextMenuEvent(self, event):
+        child = self.childAt(event.pos())
+        self.cMenu.exec_(event.globalPos())
