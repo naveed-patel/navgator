@@ -1,23 +1,29 @@
+v0.2.4 2019-06-05 22:01 BST
++ Pane status show available free space on mount point
+!! Files deleted from Navgator weren't removed from listing. Fixed.
+!! Failed to launch if active tab was pointing to non-existing directory. Fixed.
+! Selection stats were incorrect on certain conditions. Fixed.
+
 v0.2.3 2019-06-04 21:55 BST
 + ContextMenu for BreadCrumbs.
 + New Command: Copy Path (Ctrl+Shift+P) available in BC Bar ContextMenu
 + New Commands: Paste and Go (Ctrl+Shift+G) available in BC Bar ContextMenu
 
 v0.2.2 2019-06-03 20:24 BST
-* Inactive tab context menu actioned on active tab. Fixed.
+! Inactive tab context menu actioned on active tab. Fixed.
 
 v0.2.1 2019-06-03 00:08 BST
 + BreadCrumbs bar and active tab can now be customised. JSON only.
 + ContextMenu is available on tab right click
-* Crash on navigating after launching new tab. Fixed.
+!! Crash on navigating after launching new tab. Fixed.
 
 v0.2.0 2019-05-30 19:30 BST
 + Aliases / Bookmarks
     > In address bar: @home=/home/naveed will set the alias
     > Type @home and it will take you to /home/naveed
     > Type @home= to unset the alias
-* Status info wasn't refreshed when changing directories. Fixed.
-* Status info was reducing dir count on file deletion. File count and size 
+! Status info wasn't refreshed when changing directories. Fixed.
+! Status info was reducing dir count on file deletion. File count and size 
   wasn't reduced. Fixed.
 * Visible panes are now checked in settings dialog. Checking them won't have 
   any difference though.

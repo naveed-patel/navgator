@@ -136,6 +136,8 @@ class Navgator(QtWidgets.QMainWindow):
                 "shortcut": "Backspace",
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
                               tab.go_back()),
+                "hovered": (lambda: self.active_pane.tabbar.currentWidget().
+                               tab.latest_history()),
             },
             "forward": {
                 "caption": "Go &Forward",

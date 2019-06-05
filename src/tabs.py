@@ -46,7 +46,6 @@ class NavTabWidget(QtWidgets.QTabWidget):
 
     def new_tab(self, tab_info={}):
         """Creates a new tab with default/provided values."""
-        logger.debug("requested new_tab")
         t = NavTab(tab_info, parent_id=self.pid)
         t.tab.location_changed.connect(self.update_gui_with_tab)
         i = self.addTab(t, tab_info["location"])
@@ -214,7 +213,6 @@ class NavList(QtWidgets.QTableView):
             self.caption = None
         self.status_info = ''
         self.filter_text = ''
-        self.selsize = 0
         self._loading = False
         self.rubberBand = QtWidgets.QRubberBand(
             QtWidgets.QRubberBand.Rectangle, self)
@@ -357,12 +355,6 @@ class NavList(QtWidgets.QTableView):
         for index in sel.indexes():
             self.model.setData(index, QtCore.Qt.Checked,
                                QtCore.Qt.CheckStateRole)
-            try:
-                stats = os.lstat(os.path.join(self.location,
-                                 str(self.model.itemData(index).get(0))))
-                self.selsize += stats.st_size
-            except FileNotFoundError:
-                logger.error(f"{self.model.itemData(index).get(0)} not found")
         for index in desel.indexes():
             if not self.model.itemData(index):
                 continue
@@ -370,18 +362,10 @@ class NavList(QtWidgets.QTableView):
             if self.filter_text == "":
                 self.model.setData(index, QtCore.Qt.Unchecked,
                                    QtCore.Qt.CheckStateRole)
-            try:
-                stats = os.lstat(os.path.join(
-                            self.location, self.model.itemData(index).get(0)))
-                self.selsize -= stats.st_size
-            except FileNotFoundError:
-                logger.error(f"{self.model.itemData(index).get(0)} not found")
-            except TypeError:
-                logger.error(f"Type error for {self.model.itemData(index)}")
 
         if self.selectionModel().selectedIndexes():
             selstat = len(self.selectionModel().selectedIndexes())
-            selinfo = f"Selected: {selstat} : {humansize(self.selsize)}"
+            selinfo = f"Selected: {selstat} : {humansize(self.vmod.selsize)}"
             if (selstat >= self.model.rowCount()):
                 self.hv.updateCheckState(1)
             else:
@@ -466,11 +450,10 @@ class NavList(QtWidgets.QTableView):
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         if loc is None:
             loc = self.location
-        elif loc != self.location:
-            if not os.path.isdir(loc):
-                logger.debug(f"{loc} isn't a directory")
-                Pub.notify("App", f"{loc} isn't a directory.")
-                return
+        if not os.path.isdir(loc):
+            logger.debug(f"{loc} isn't a directory")
+            Pub.notify("App", f"{loc} isn't a directory.")
+            return
         if (forced and self._loading is False) or loc != self.location \
                 or self.vmod.last_read < os.stat(loc).st_mtime:
             if not forced:
@@ -478,9 +461,13 @@ class NavList(QtWidgets.QTableView):
             self.hv.updateCheckState(0)  # Uncheck main checkbox
             self._loading = True
             self.vmod.list_dir(loc)
+            try:
+                free_disk = humansize(shutil.disk_usage(self.location)[2])
+            except OSError:
+                free_disk = ""
             self.status_info = f"Files: {self.vmod.fcount}, Dirs: " \
-                               f"{self.vmod.dcount} Total: " \
-                               f"{humansize(self.vmod.total)}"
+                f"{self.vmod.dcount} Total: {humansize(self.vmod.total)} " \
+                f"Free: {free_disk}"
             self.sortByColumn(self.sort_column, self.sort_order)
             self._loading = False
             if self.location != os.path.abspath(loc):
@@ -507,7 +494,8 @@ class NavList(QtWidgets.QTableView):
             logger.debug(f"{self.location}: {evt.src_path} Modified")
             self.vmod.update_row(name)
         self.status_info = f"Files: {self.vmod.fcount}, Dirs: " \
-            f"{self.vmod.dcount} Total: {humansize(self.vmod.total)}"
+            f"{self.vmod.dcount} Total: {humansize(self.vmod.total)} " \
+            f"Free: {humansize(shutil.disk_usage(self.location)[2])}"
 
     def sortIndicatorChanged(self, logicalIndex, sortOrder):
         """Remembers the sorted column and order."""
@@ -553,10 +541,17 @@ class NavList(QtWidgets.QTableView):
 
     def trash(self):
         """Delete the current list of selected files to trash."""
-        files = [os.path.join(self.location, self.model.itemData(index).get(0))
+        files = [self.model.itemData(index).get(0)
                  for index in self.selectionModel().selectedIndexes()]
         for f in files:
-            send2trash(f)
+            fullname = os.path.join(self.location, f)
+            try:
+                send2trash(fullname)
+                self.vmod.remove_row(f)
+            except OSError:
+                logger.error(f"Error deleting file", exc_info=True)
+                Pub.notify("App", f"{self.pid}: Error deleting file",
+                           exc_info=True)
 
     def delete(self):
         """Permanently delete the currently selected files."""

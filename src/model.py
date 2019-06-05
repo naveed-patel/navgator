@@ -59,7 +59,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
             return False
 
         self.files = []
-        self.fcount = self.dcount = self.total = 0
+        self.fcount = self.dcount = self.total = self.selsize = 0
         cur_sel = []
         logger.debug(f"Listing {d} - {len(cur_sel)} selected")
         self.layoutAboutToBeChanged.emit()
@@ -134,6 +134,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
                                          time.localtime(stats.st_mtime)))
                 self.layoutChanged.emit()
                 self.last_read = os.stat(self.parent.location).st_mtime
+                
                 Pub.notify("App", f"{self.pid}: {upd_item} was modified.")
                 return
 
@@ -235,7 +236,9 @@ class NavItemModel(QtCore.QAbstractItemModel):
         if role == QtCore.Qt.CheckStateRole:
             if value == QtCore.Qt.Checked:
                 self.files[index.row()][self.state] |= NavStates.IS_SELECTED
+                self.selsize += to_bytes(self.files[index.row()][2])
             else:
                 self.files[index.row()][self.state] &= ~NavStates.IS_SELECTED
+                self.selsize -= to_bytes(self.files[index.row()][2])
             return True
         return False
