@@ -10,7 +10,7 @@ from .tabs import NavTabWidget
 
 
 class NavPane(QtWidgets.QFrame):
-    activated = QtCore.pyqtSignal(QtCore.QObject)
+    pane_updated = QtCore.pyqtSignal(QtCore.QObject)
 
     def __init__(self, pid, pane_info):
         super().__init__()
@@ -69,6 +69,7 @@ class NavPane(QtWidgets.QFrame):
             NavWatcher.add_path(self.location, self.change_detected)
             NavWatcher.start()
         self.installEventFilter(self)  # this will catch focus events
+        self.tabbar.tab_created.connect(lambda: self.install_filters())
 
     def set_visibility(self, visibility):
         """Toggle pane visibility."""
@@ -90,8 +91,8 @@ class NavPane(QtWidgets.QFrame):
 
     def eventFilter(self, obj, event):
         """Reimplemented to handle active pane."""
-        if event.type() == QtCore.QEvent.MouseButtonPress \
-                or event.type() == QtCore.QEvent.FocusIn:
+        if event.type() == QtCore.QEvent.MouseButtonPress:
+                #or event.type() == QtCore.QEvent.FocusIn:
             # logger.debug(f"{self.pid}: {event} {event.type()} for {obj}")
             self.location = self.tabbar.currentWidget().tab.location
             try:
@@ -101,7 +102,7 @@ class NavPane(QtWidgets.QFrame):
                 pass
             except NotADirectoryError:
                 logger.error(f"{self.location} is not a directory")
-            self.activated.emit(self)
+            self.pane_updated.emit(self)
             return QtCore.QObject.eventFilter(self, obj, event)
         else:
             return False
@@ -110,6 +111,10 @@ class NavPane(QtWidgets.QFrame):
         """Installs event filters in all children of panel."""
         super().showEvent(event)
         # this will install event filter in all children of the panel
+        self.install_filters()
+
+    def install_filters(self):
+        """Install event filter in all children of the panel."""
         for widget in self.findChildren(QtWidgets.QWidget):
             widget.installEventFilter(self)
 
@@ -192,8 +197,19 @@ class NavPane(QtWidgets.QFrame):
         # load tab if not already loaded
         self.tabbar.currentWidget().tab.load_tab()
         self.tabbar.currentWidget().bcbar.create_crumbs(loc)
+        self.check_navigation_options()
         self.filter_edit.setText(self.tabbar.currentWidget().tab.filter_text)
         self.sb.showMessage(self.tabbar.currentWidget().tab.status_info)
+        self.pane_updated.emit(self)
+
+    def check_navigation_options(self):
+        """Checks if can navigate up/back/foreward"""
+        self.can_go_up = True if self.tabbar.currentWidget().tab.location \
+            != os.sep else False
+        self.can_go_back = True if self.tabbar.currentWidget().tab.history \
+            else False
+        self.can_go_forward = True if self.tabbar.currentWidget().tab.future \
+            else False
 
     def update_status_bar(self, msg):
         """Updates status bar for pane with provided message."""

@@ -102,24 +102,34 @@ class NavBreadCrumbsBar(QtWidgets.QFrame):
         """Breaks the path into crumbs alongwith dropdown."""
         if not path:
             return
+        cur = self.cwd
+        logger.debug(f"{cur} : {path}")
         # Identify common path
         if self.cwd:
+            logger.debug(self.layout().count())
             common = os.path.commonpath([self.cwd, path])
             if common.endswith(os.sep):
                 common = common[:-1]
         else:
             common = None
         self.cwd = path
+        logger.debug(f"common: {common}")
+
         # Remove crumbs which are now invalid. Preserve common ones
         if self.layout().count():
+            logger.debug(self.layout())
             for i in reversed(range(self.layout().count())):
                 try:
                     wid = self.layout().itemAt(i).widget()
+                    logger.debug(wid)
                     if common == wid.cwd.absolutePath():
                         break
                     wid.close()
+                    wid.deleteLater()
                 except AttributeError:
                     self.layout().removeItem(self.layout().itemAt(i))
+            logger.debug(f"finished {common}")
+
         if not common:
             count = 0
         else:
@@ -155,8 +165,7 @@ class NavBreadCrumbsBar(QtWidgets.QFrame):
         clip = QtWidgets.QApplication.clipboard().text()
         # if os.path.isdir(clip):
         self.clicked.emit(clip)
-        
 
     def contextMenuEvent(self, event):
-        child = self.childAt(event.pos())
+        # child = self.childAt(event.pos())
         self.cMenu.exec_(event.globalPos())

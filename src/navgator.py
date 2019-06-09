@@ -75,7 +75,7 @@ class Navgator(QtWidgets.QMainWindow):
                     }
                 }
                 p = NavPane(name, Nav.conf["panes"][name])
-            p.activated.connect(self.active_pane_changed)
+            p.pane_updated.connect(self.active_pane_changed)
 
             if i % 2 != 0:
                 self.splitter1.addWidget(p)
@@ -116,6 +116,7 @@ class Navgator(QtWidgets.QMainWindow):
         if Nav.conf["window"]["statusbar"]:
             Pub.subscribe("App", self.update_status_bar)
             self.sb.show()
+            self.active_pane_changed(self.active_pane)
             self.sb.showMessage("Ready", 2000)
         else:
             self.sb.hide()
@@ -136,15 +137,20 @@ class Navgator(QtWidgets.QMainWindow):
                 "shortcut": "Backspace",
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
                               tab.go_back()),
-                "hovered": (lambda: self.active_pane.tabbar.currentWidget().
-                               tab.latest_history()),
             },
             "forward": {
                 "caption": "Go &Forward",
                 "icon": self.style().standardIcon(
                     QtWidgets.QStyle.SP_ArrowForward),
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
-                              tab.go_forward())
+                              tab.go_forward()),
+            },
+            "up": {
+                "caption": "Go &Up",
+                "icon": self.style().standardIcon(
+                    QtWidgets.QStyle.SP_ArrowUp),
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              tab.go_up()),
             },
             "rename": {
                 "caption": "&Rename",
@@ -319,9 +325,12 @@ class Navgator(QtWidgets.QMainWindow):
 
     def create_toolbar(self):
         """Creates a toolbar."""
-        toolbar = self.addToolBar("Main")
-        toolbar.addAction(Nav.actions["back"])
-        toolbar.addAction(Nav.actions["forward"])
+        self.toolbar = self.addToolBar("Main")
+        self.toolbar.addAction(Nav.actions["back"])
+        self.toolbar.addAction(Nav.actions["forward"])
+        self.toolbar.addAction(Nav.actions["up"])
+        for widget in self.toolbar.findChildren(QtWidgets.QWidget):
+            widget.installEventFilter(self)
 
     def create_menu(self):
         """Creates menu recursively."""
@@ -469,10 +478,26 @@ class Navgator(QtWidgets.QMainWindow):
         setting.show()
 
     def settings_changed(self):
-        logger.debug("settings were changed")
+        logger.debug("Settings were changed")
         self.create_menu()
         # for k in Nav.conf:
         #    if k == "panes":
+
+    def eventFilter(self, obj, event):
+        if event.type() == QtCore.QEvent.ToolTip:
+            if obj.text() == "Go Back":
+                obj.setToolTip(self.active_pane.tabbar.currentWidget().tab.
+                               history[-1])
+            elif obj.text() == "Go Forward":
+                try:
+                    obj.setToolTip(self.active_pane.tabbar.currentWidget().
+                                   tab.future[0])
+                except IndexError:
+                    obj.setToolTip("No more forward")
+
+            logger.debug(f"caught on {obj} {obj.text()}")
+            # return True
+        return QtCore.QObject.eventFilter(self, obj, event)
 
     def closeEvent(self, event):
         """Save and exit application."""
@@ -541,6 +566,9 @@ class Navgator(QtWidgets.QMainWindow):
             self.setWindowTitle(f"{self.title} - {obj.pid}")
             self.active_pane.tabbar.setStyleSheet(self.stylesheet.format(
                 bg=Nav.conf["colors"]["bcbar"]["active"]))
+        Nav.actions["up"].setEnabled(self.active_pane.can_go_up)
+        Nav.actions["back"].setEnabled(self.active_pane.can_go_back)
+        Nav.actions["forward"].setEnabled(self.active_pane.can_go_forward)
 
     def update_status_bar(self, msg: str, duration: int = 2000):
         """Signals to update main status bar."""

@@ -1,3 +1,14 @@
+v0.2.5 2019-06-09 13:43 BST
+! Free space wasn't displayed on Del Dir Up. Fixed.
++ Back and Forward tooltips show the destination.
+! Selection stats were incorrect at times. Attempted fix.
+! Last item couldn't be dragged. Fixed.
+! New tabs didn't activate pane change unless restarted. Fixed.
+! Navigating back to root would display root twice. Fixed.
+!! Breadcrumbs memory leak. Fixed.
++ Added Toolbar icon to go up
++ Toolbar buttons are disabled if can't go back/forward/up
+
 v0.2.4 2019-06-05 22:01 BST
 + Pane status show available free space on mount point
 !! Files deleted from Navgator weren't removed from listing. Fixed.

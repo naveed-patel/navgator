@@ -134,7 +134,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
                                          time.localtime(stats.st_mtime)))
                 self.layoutChanged.emit()
                 self.last_read = os.stat(self.parent.location).st_mtime
-                
+
                 Pub.notify("App", f"{self.pid}: {upd_item} was modified.")
                 return
 
@@ -166,6 +166,12 @@ class NavItemModel(QtCore.QAbstractItemModel):
                         logger.debug(f"Error getting size for {rem_item}",
                                      exc_info=True)
                     self.fcount -= 1
+                if item[self.state] & NavStates.IS_SELECTED:
+                    self.selcount -= 1
+                    try:
+                        self.selsize -= size
+                    except UnboundLocalError:
+                        pass
                 index = self.files.index(item)
                 self.beginRemoveRows(QtCore.QModelIndex(), index, index)
                 self.files.pop(index)
@@ -242,3 +248,12 @@ class NavItemModel(QtCore.QAbstractItemModel):
                 self.selsize -= to_bytes(self.files[index.row()][2])
             return True
         return False
+
+    def get_selection_stats(self):
+        """Get stats of selected items"""
+        self.selsize = self.selcount = 0
+        for item in self.files:
+            if item[self.state] & NavStates.IS_SELECTED & ~NavStates.IS_DIR:
+                self.selsize += to_bytes(item[2])
+                self.selcount += 1
+        return self.selcount, self.selsize

@@ -27,6 +27,7 @@ class NavColumn:
 class NavTabWidget(QtWidgets.QTabWidget):
     """Re-implemented to present tab menu"""
     cMenu = None  # common contextMenu across class
+    tab_created = QtCore.pyqtSignal()
 
     def __init__(self, parent, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -50,13 +51,13 @@ class NavTabWidget(QtWidgets.QTabWidget):
         t.tab.location_changed.connect(self.update_gui_with_tab)
         i = self.addTab(t, tab_info["location"])
         self.set_caption(i, caption=t.tab.caption, loc=t.tab.location)
-        t.installEventFilter(self)  # install filter for new tabs
+        self.tab_created.emit()  # install filter for new tabs
 
     def update_gui_with_tab(self, loc):
         """Updates GUI and sets tab caption to sync with navigations."""
         cur_tab = self.currentIndex()
         self.set_caption(cur_tab, loc=loc)
-        self.currentWidget().bcbar.create_crumbs(loc)
+        # self.currentWidget().bcbar.create_crumbs(loc)
         self.currentChanged.emit(cur_tab)
 
     def set_caption(self, index: int=None, caption: str=None,
@@ -180,6 +181,14 @@ class NavTab(QtWidgets.QFrame):
         lyt.addWidget(self.bcbar)
         lyt.addWidget(self.tab)
         self.setLayout(lyt)
+    #     self.installEventFilter(self)  # this will catch focus events
+
+    # def showEvent(self, event):
+    #     """Installs event filters in all children of panel."""
+    #     super().showEvent(event)
+    #     # this will install event filter in all children of the panel
+    #     for widget in self.findChildren(QtWidgets.QWidget):
+    #         widget.installEventFilter(self)
 
 
 class NavList(QtWidgets.QTableView):
@@ -316,6 +325,14 @@ class NavList(QtWidgets.QTableView):
             self.load_tab(d)
             self.future.clear()
 
+    def go_up(self):
+        """Go up the tree."""
+        try:
+            loc = os.path.dirname(self.location)
+            self.opener(loc)
+        except OSError:
+            logger.error(exc_info=True)
+
     def go_back(self):
         """Go back in history."""
         try:
@@ -363,9 +380,11 @@ class NavList(QtWidgets.QTableView):
                 self.model.setData(index, QtCore.Qt.Unchecked,
                                    QtCore.Qt.CheckStateRole)
 
-        if self.selectionModel().selectedIndexes():
-            selstat = len(self.selectionModel().selectedIndexes())
-            selinfo = f"Selected: {selstat} : {humansize(self.vmod.selsize)}"
+        selstat = len(self.selectionModel().selectedIndexes())
+        if selstat:
+            selcount, selsize = self.vmod.get_selection_stats()
+            selinfo = f" Selected: {selcount} : " \
+                      f"{humansize(selsize)}"
             if (selstat >= self.model.rowCount()):
                 self.hv.updateCheckState(1)
             else:
@@ -393,7 +412,9 @@ class NavList(QtWidgets.QTableView):
         """Reimplemented for custom handling."""
         self.origin = event.pos() + self._offset
         self._modifier = event.modifiers()
-        if self.indexAt(self.origin).column() != 0:
+        if self.indexAt(self.origin).column() > 0:
+            # logger.debug(self.indexAt(self.origin).column())
+            # super().mousePressEvent(event)
             self._selection = self.selectionModel().selection()
             self.rubberBand.setGeometry(QtCore.QRect(self.origin,
                                                      QtCore.QSize()))
@@ -462,7 +483,7 @@ class NavList(QtWidgets.QTableView):
             self._loading = True
             self.vmod.list_dir(loc)
             try:
-                free_disk = humansize(shutil.disk_usage(self.location)[2])
+                free_disk = humansize(shutil.disk_usage(loc)[2])
             except OSError:
                 free_disk = ""
             self.status_info = f"Files: {self.vmod.fcount}, Dirs: " \
@@ -471,6 +492,7 @@ class NavList(QtWidgets.QTableView):
             self.sortByColumn(self.sort_column, self.sort_order)
             self._loading = False
             if self.location != os.path.abspath(loc):
+                self.clearSelection()
                 self.location = os.path.abspath(loc)
                 self.location_changed.emit(self.location)
 
@@ -493,9 +515,15 @@ class NavList(QtWidgets.QTableView):
         elif evt.event_type == "modified":
             logger.debug(f"{self.location}: {evt.src_path} Modified")
             self.vmod.update_row(name)
+        # selstat = len(self.selectionModel().selectedIndexes())
+        if self.vmod.selcount:
+            selinfo = f" Selected: {self.vmod.selcount} " \
+                      f"{humansize(self.vmod.selsize)}"
+        else:
+            selinfo = ""
         self.status_info = f"Files: {self.vmod.fcount}, Dirs: " \
             f"{self.vmod.dcount} Total: {humansize(self.vmod.total)} " \
-            f"Free: {humansize(shutil.disk_usage(self.location)[2])}"
+            f"Free: {humansize(shutil.disk_usage(self.location)[2])} {selinfo}"
 
     def sortIndicatorChanged(self, logicalIndex, sortOrder):
         """Remembers the sorted column and order."""

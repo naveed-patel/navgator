@@ -1,5 +1,6 @@
 from PyQt5 import QtWidgets, QtCore
 from .core import Nav, NavStates
+# from .helper import logger
 
 
 class NavTree(QtWidgets.QTreeView):
