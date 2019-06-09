@@ -1,3 +1,8 @@
+v0.2.6 2019-06-09 19:31 BST
+++ Thumbnails are visible for image files in last column.
+   Row heights has been increased to accomodate it. To be improved.
+! Model stopped getting refreshed on background changes. Fixed.
+
 v0.2.5 2019-06-09 13:43 BST
 ! Free space wasn't displayed on Del Dir Up. Fixed.
 + Back and Forward tooltips show the destination.

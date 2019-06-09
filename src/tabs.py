@@ -243,10 +243,12 @@ class NavList(QtWidgets.QTableView):
             NavColumn("Name", 300),
             NavColumn("Ext", 50),
             NavColumn("Size", 100),
-            NavColumn("Modified", 150)
+            NavColumn("Modified", 150),
+            NavColumn("Thumbnails", 128)
         ]
         self.vmod = NavItemModel(self, self.headers)
         self.hv = NavHeaderView(self.headers)
+        self.hv.setSectionsMovable(True)
         self.setItemDelegateForColumn(0, NavCheckBoxDelegate(self))
         self.hv.setSectionsClickable(True)
         self.hv.setHighlightSections(True)
@@ -266,6 +268,7 @@ class NavList(QtWidgets.QTableView):
         self.SelectionBehavior(1)
         self.SelectionMode(7)
         self.State(2)
+        self.verticalHeader().setDefaultSectionSize(128)
 
     @property
     def location(self):
@@ -516,9 +519,11 @@ class NavList(QtWidgets.QTableView):
             logger.debug(f"{self.location}: {evt.src_path} Modified")
             self.vmod.update_row(name)
         # selstat = len(self.selectionModel().selectedIndexes())
-        if self.vmod.selcount:
-            selinfo = f" Selected: {self.vmod.selcount} " \
-                      f"{humansize(self.vmod.selsize)}"
+        selstat = len(self.selectionModel().selectedIndexes())
+        if selstat:
+            selcount, selsize = self.vmod.get_selection_stats()
+            selinfo = f" Selected: {selcount} : " \
+                      f"{humansize(selsize)}"
         else:
             selinfo = ""
         self.status_info = f"Files: {self.vmod.fcount}, Dirs: " \

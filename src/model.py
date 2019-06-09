@@ -2,7 +2,7 @@ import os
 import pathlib
 import sys
 import time
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtWidgets, QtGui
 from .core import NavStates
 from .helper import logger, humansize, to_bytes
 from .pub import Pub
@@ -40,6 +40,15 @@ class NavItemModel(QtCore.QAbstractItemModel):
         self.fcount = self.dcount = self.total = 0
         self.last_read = 0
         self.state = -1
+        self.thumbs = True
+        self.pixmap_cache = {}
+        # Indices for
+        self.col_map = {
+            "name": 0,
+            "ext": 1,
+            "size": 2,
+            "modified": 3,
+        }
 
     def list_dir(self, d: str):
         """Updates the model with director listing."""
@@ -201,6 +210,19 @@ class NavItemModel(QtCore.QAbstractItemModel):
         value = self.files[row][column]
         if role == QtCore.Qt.EditRole:
             return value
+        elif column == 4:
+            if role == QtCore.Qt.DecorationRole:
+                if self.files[row][0] not in self.pixmap_cache:
+                    pixmap = self.generatePixmap(self.files[row][0])
+                    self.pixmap_cache[self.files[row][0]] = pixmap
+                else:
+                    pixmap = self.pixmap_cache[self.files[row][0]]
+                return QtGui.QImage(pixmap).scaled(128, 128,
+                                                   QtCore.Qt.KeepAspectRatio)
+            elif role == QtCore.Qt.SizeHintRole:
+                return QtCore.QSize(128, 128)
+            else:
+                return None
         elif role == QtCore.Qt.DisplayRole:
             return value
         elif column == 0 \
@@ -248,6 +270,11 @@ class NavItemModel(QtCore.QAbstractItemModel):
                 self.selsize -= to_bytes(self.files[index.row()][2])
             return True
         return False
+
+    def generatePixmap(self, value):
+        pixmap = QtGui.QPixmap()
+        pixmap.load(value)
+        return pixmap
 
     def get_selection_stats(self):
         """Get stats of selected items"""
