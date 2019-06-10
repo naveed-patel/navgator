@@ -1,6 +1,14 @@
 from PyQt5 import QtWidgets, QtCore
 from .core import Nav, NavStates
+from dataclasses import dataclass
 # from .helper import logger
+
+
+@dataclass
+class NavColumn:
+    caption: str
+    size: int
+    visible: bool = True
 
 
 class NavTree(QtWidgets.QTreeView):
@@ -59,6 +67,7 @@ class NavItemSelectionModel(QtCore.QItemSelectionModel):
 class NavHeaderView(QtWidgets.QHeaderView):
     """Sub-classed to add a checkbox on header."""
     clicked = QtCore.pyqtSignal(int, bool)
+    visibility_changed = QtCore.pyqtSignal(int, bool)
 
     def __init__(self, header, orientation=QtCore.Qt.Horizontal, parent=None):
         super().__init__(orientation, parent)
@@ -125,6 +134,23 @@ class NavHeaderView(QtWidgets.QHeaderView):
                 self.viewport().update()
                 return
         super().mousePressEvent(event)
+
+    def contextMenuEvent(self, event):
+        """Re-implemented to handle the context menu on header."""
+        cMenu = QtWidgets.QMenu()
+        for h in self.header:
+            v = {"checkable": True, "checked": h.visible}
+            act = QtWidgets.QAction(h.caption, self, **v)
+            cMenu.addAction(act)
+        choice = cMenu.exec_(event.globalPos())
+        if choice:
+            i = 0
+            for h in self.header:
+                if h.caption == choice.text():
+                    self.setSectionHidden(i, h.visible)
+                    self.header[i].visible = not h.visible
+                    return
+                i += 1
 
 
 class NavSortFilterProxyModel(QtCore.QSortFilterProxyModel):

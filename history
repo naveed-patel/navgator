@@ -1,3 +1,9 @@
+v0.2.7 2019-06-10 23:35 BST
+* Improvements to thumbnail generation
++ Context menu for Columns allowing to show/hide columns
++ Columns can be moved around
++ Visible columns is saved and restored
+
 v0.2.6 2019-06-09 19:31 BST
 ++ Thumbnails are visible for image files in last column.
    Row heights has been increased to accomodate it. To be improved.

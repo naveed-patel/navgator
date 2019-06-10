@@ -529,6 +529,10 @@ class Navgator(QtWidgets.QMainWindow):
                 "active": self.panes[p].tabbar.currentIndex(), }
             for j in range(Nav.conf["panes"][paneid]["tabs"]["total"]):
                 tab = self.panes[p].tabbar.widget(j).tab
+                headers = []
+                for h in tab.headers:
+                    if h.visible:
+                        headers.append([h.caption, h.size])
                 Nav.conf["panes"][paneid]["tabs"][j] = {
                         "location": tab.location,
                         "history": list(tab.history),
@@ -536,6 +540,7 @@ class Navgator(QtWidgets.QMainWindow):
                         "caption": self.panes[p].tabbar.tabBar().tabData(j),
                         "sort_column": tab.sort_column,
                         "sort_order": tab.sort_order,
+                        "columns": headers,
                 }
             Nav.conf["panes"]["active"] = self.active_pane.pid
         with open(Nav.conf_file, "w") as json_file:

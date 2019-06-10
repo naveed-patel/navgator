@@ -21,7 +21,7 @@ VERSION = '0.2.6'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    'PyQt5', 'watchdog', 'send2trash'
+    'PyQt5', 'watchdog', 'send2trash', 'pillow'
 ]
 
 # What packages are optional?

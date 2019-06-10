@@ -3,6 +3,8 @@ import pathlib
 import sys
 import time
 from PyQt5 import QtCore, QtWidgets, QtGui
+from PIL import Image
+from PIL.ImageQt import ImageQt
 from .core import NavStates
 from .helper import logger, humansize, to_bytes
 from .pub import Pub
@@ -30,6 +32,7 @@ class NavIcon:
 
 class NavItemModel(QtCore.QAbstractItemModel):
     """Custom File System Model for this application."""
+    tw = th = 128
 
     def __init__(self, parent, header, *args, mylist=[]):
         super().__init__(parent, *args)
@@ -41,14 +44,8 @@ class NavItemModel(QtCore.QAbstractItemModel):
         self.last_read = 0
         self.state = -1
         self.thumbs = True
+        self.parent.verticalHeader().setDefaultSectionSize(self.th)
         self.pixmap_cache = {}
-        # Indices for
-        self.col_map = {
-            "name": 0,
-            "ext": 1,
-            "size": 2,
-            "modified": 3,
-        }
 
     def list_dir(self, d: str):
         """Updates the model with director listing."""
@@ -205,35 +202,45 @@ class NavItemModel(QtCore.QAbstractItemModel):
         """Returns data to be displayed in the model."""
         if not index.isValid():
             return None
-        row = index.row()
-        column = index.column()
-        value = self.files[row][column]
-        if role == QtCore.Qt.EditRole:
-            return value
-        elif column == 4:
-            if role == QtCore.Qt.DecorationRole:
-                if self.files[row][0] not in self.pixmap_cache:
-                    pixmap = self.generatePixmap(self.files[row][0])
-                    self.pixmap_cache[self.files[row][0]] = pixmap
+        try:
+            row = index.row()
+            column = index.column()
+            value = self.files[row][column]
+            if role == QtCore.Qt.EditRole:
+                return value
+            elif column == 4 and self.thumbs:
+                if role == QtCore.Qt.DecorationRole:
+                    try:
+                        im = Image.open(f"{self.parent.location}{os.sep}"
+                                        f"{self.files[row][0]}")
+                        im.thumbnail((self.tw, self.th), Image.ANTIALIAS)
+                        # self.parent.setRowHeight(row, self.th)
+                        return QtGui.QImage(ImageQt(im))
+                    except Exception:
+                        pass  # Ignore if thumbnails can't be generated
+                    # if self.files[row][0] not in self.pixmap_cache:
+                    #     self.pixmap_cache[self.files[row][0]] = \
+                    #         QtGui.QPixmap(self.files[row][0])
+                    # return QtGui.QImage(
+                    #     self.pixmap_cache[self.files[row][0]]). \
+                    #     scaled(128, 128, QtCore.Qt.KeepAspectRatio)
+                # elif role == QtCore.Qt.SizeHintRole:
+                #     return QtCore.QSize(128, 128)
                 else:
-                    pixmap = self.pixmap_cache[self.files[row][0]]
-                return QtGui.QImage(pixmap).scaled(128, 128,
-                                                   QtCore.Qt.KeepAspectRatio)
-            elif role == QtCore.Qt.SizeHintRole:
-                return QtCore.QSize(128, 128)
-            else:
-                return None
-        elif role == QtCore.Qt.DisplayRole:
-            return value
-        elif column == 0 \
-                and role == QtCore.Qt.DecorationRole:
-            return NavIcon.get_icon(self.files[row][0])
-        elif role == QtCore.Qt.CheckStateRole:
-            if column == 0:
-                if self.files[row][self.state] & NavStates.IS_SELECTED:
-                    return QtCore.Qt.Checked
-                else:
-                    return QtCore.Qt.Unchecked
+                    return None
+            elif role == QtCore.Qt.DisplayRole:
+                return value
+            elif column == 0 \
+                    and role == QtCore.Qt.DecorationRole:
+                return NavIcon.get_icon(self.files[row][0])
+            elif role == QtCore.Qt.CheckStateRole:
+                if column == 0:
+                    if self.files[row][self.state] & NavStates.IS_SELECTED:
+                        return QtCore.Qt.Checked
+                    else:
+                        return QtCore.Qt.Unchecked
+        except IndexError:
+            pass
 
     def headerData(self, column, orientation, role):
         """Return caption for the headers."""

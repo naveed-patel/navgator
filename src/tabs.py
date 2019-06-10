@@ -6,22 +6,15 @@ import stat
 import subprocess
 import sys
 import threading
-from dataclasses import dataclass
 from PyQt5 import QtWidgets, QtCore, QtGui
 from send2trash import send2trash
 from .breadcrumbs import NavBreadCrumbsBar
 from .helper import logger, humansize
 from .pub import Pub
 from .model import NavItemModel
-from .custom import NavCheckBoxDelegate, NavSortFilterProxyModel, NavHeaderView
+from .custom import (NavCheckBoxDelegate, NavSortFilterProxyModel,
+                     NavHeaderView, NavColumn)
 from .core import Nav
-
-
-@dataclass
-class NavColumn:
-    caption: str
-    size: int
-    visible: bool = True
 
 
 class NavTabWidget(QtWidgets.QTabWidget):
@@ -253,6 +246,7 @@ class NavList(QtWidgets.QTableView):
         self.hv.setSectionsClickable(True)
         self.hv.setHighlightSections(True)
         self.hv.clicked.connect(self.updateModel)
+        self.hv.setModel(self.vmod)
         self.setHorizontalHeader(self.hv)
         self.setSortingEnabled(True)
         self.model = NavSortFilterProxyModel(self)
@@ -269,6 +263,20 @@ class NavList(QtWidgets.QTableView):
         self.SelectionMode(7)
         self.State(2)
         self.verticalHeader().setDefaultSectionSize(128)
+        # self.hv.sectionMoved.connect(self.hellow)
+        # self.hv.swapSections(0, 4)
+        if "columns" in tab_info:
+            i = 0
+            for h in self.headers:
+                flag = 0
+                for ch in tab_info["columns"]:
+                    if h.caption == ch[0]:
+                        flag = 1
+                        break
+                if not flag:
+                    self.hv.hideSection(i)
+                    h.visible = False
+                i += 1
 
     @property
     def location(self):
