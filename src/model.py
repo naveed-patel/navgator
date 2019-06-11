@@ -43,8 +43,6 @@ class NavItemModel(QtCore.QAbstractItemModel):
         self.fcount = self.dcount = self.total = 0
         self.last_read = 0
         self.state = -1
-        self.thumbs = True
-        self.parent.verticalHeader().setDefaultSectionSize(self.th)
         self.pixmap_cache = {}
 
     def list_dir(self, d: str):
@@ -208,7 +206,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
             value = self.files[row][column]
             if role == QtCore.Qt.EditRole:
                 return value
-            elif column == 4 and self.thumbs:
+            elif column == 4:
                 if role == QtCore.Qt.DecorationRole:
                     try:
                         im = Image.open(f"{self.parent.location}{os.sep}"

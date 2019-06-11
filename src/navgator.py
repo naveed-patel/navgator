@@ -532,7 +532,8 @@ class Navgator(QtWidgets.QMainWindow):
                 headers = []
                 for h in tab.headers:
                     if h.visible:
-                        headers.append([h.caption, h.size])
+                        headers.append([h.caption, h.size, h.position])
+
                 Nav.conf["panes"][paneid]["tabs"][j] = {
                         "location": tab.location,
                         "history": list(tab.history),

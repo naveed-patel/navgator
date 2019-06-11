@@ -92,7 +92,6 @@ class NavPane(QtWidgets.QFrame):
     def eventFilter(self, obj, event):
         """Reimplemented to handle active pane."""
         if event.type() == QtCore.QEvent.MouseButtonPress:
-                #or event.type() == QtCore.QEvent.FocusIn:
             # logger.debug(f"{self.pid}: {event} {event.type()} for {obj}")
             self.location = self.tabbar.currentWidget().tab.location
             try:

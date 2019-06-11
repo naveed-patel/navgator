@@ -8,6 +8,7 @@ from dataclasses import dataclass
 class NavColumn:
     caption: str
     size: int
+    position: int = -1
     visible: bool = True
 
 
@@ -29,20 +30,22 @@ class NavTree(QtWidgets.QTreeView):
 
 class NavCheckBoxDelegate(QtWidgets.QStyledItemDelegate):
     """Delegate to handle checkbox toggle"""
-    def __init__(self, parent):
+    def __init__(self, parent, ind):
         self.parent = parent
+        self.ind = ind
         super().__init__(parent)
 
     def editorEvent(self, event, model, option, index):
         """Check if checkbox was clicked and trigger the toggle."""
         if event.type() == QtCore.QEvent.MouseButtonPress \
-                and event.button() == QtCore.Qt.LeftButton \
-                and event.pos().x() < 20:
-            self.parent.selectionModel().select(
-                index, QtCore.QItemSelectionModel.Toggle)
-            return True
-        else:
-            return False
+                and event.button() == QtCore.Qt.LeftButton:
+            offset = self.parent.hv.sectionPosition(self.ind)
+            x = event.pos().x()
+            if x > offset and x < offset + 20:
+                self.parent.selectionModel().select(
+                    index, QtCore.QItemSelectionModel.Toggle)
+                return True
+        return False
 
 
 class NavItemSelectionModel(QtCore.QItemSelectionModel):
@@ -67,7 +70,7 @@ class NavItemSelectionModel(QtCore.QItemSelectionModel):
 class NavHeaderView(QtWidgets.QHeaderView):
     """Sub-classed to add a checkbox on header."""
     clicked = QtCore.pyqtSignal(int, bool)
-    visibility_changed = QtCore.pyqtSignal(int, bool)
+    visibility_changed = QtCore.pyqtSignal(int, str, bool)
 
     def __init__(self, header, orientation=QtCore.Qt.Horizontal, parent=None):
         super().__init__(orientation, parent)
@@ -143,14 +146,13 @@ class NavHeaderView(QtWidgets.QHeaderView):
             act = QtWidgets.QAction(h.caption, self, **v)
             cMenu.addAction(act)
         choice = cMenu.exec_(event.globalPos())
-        if choice:
-            i = 0
-            for h in self.header:
+        if choice and choice.text() != self.header[0].caption:
+            for idx, h in enumerate(self.header):
                 if h.caption == choice.text():
-                    self.setSectionHidden(i, h.visible)
-                    self.header[i].visible = not h.visible
+                    self.setSectionHidden(idx, h.visible)
+                    self.header[idx].visible = not h.visible
+                    self.visibility_changed.emit(idx, h.caption, h.visible)
                     return
-                i += 1
 
 
 class NavSortFilterProxyModel(QtCore.QSortFilterProxyModel):

@@ -27,7 +27,7 @@ class NavTabWidget(QtWidgets.QTabWidget):
         self.parent = parent
         self.pid = self.parent.pid
         if self.cMenu is None:
-            logger.debug("Creating context menu for tabbar")
+            # logger.debug("Creating context menu for tabbar")
             self.__class__.cMenu = QtWidgets.QMenu()
             items = [
                 Nav.actions["new_tab"], Nav.actions["close_tab"],
@@ -174,14 +174,6 @@ class NavTab(QtWidgets.QFrame):
         lyt.addWidget(self.bcbar)
         lyt.addWidget(self.tab)
         self.setLayout(lyt)
-    #     self.installEventFilter(self)  # this will catch focus events
-
-    # def showEvent(self, event):
-    #     """Installs event filters in all children of panel."""
-    #     super().showEvent(event)
-    #     # this will install event filter in all children of the panel
-    #     for widget in self.findChildren(QtWidgets.QWidget):
-    #         widget.installEventFilter(self)
 
 
 class NavList(QtWidgets.QTableView):
@@ -242,7 +234,7 @@ class NavList(QtWidgets.QTableView):
         self.vmod = NavItemModel(self, self.headers)
         self.hv = NavHeaderView(self.headers)
         self.hv.setSectionsMovable(True)
-        self.setItemDelegateForColumn(0, NavCheckBoxDelegate(self))
+        self.setItemDelegateForColumn(0, NavCheckBoxDelegate(self, 0))
         self.hv.setSectionsClickable(True)
         self.hv.setHighlightSections(True)
         self.hv.clicked.connect(self.updateModel)
@@ -262,21 +254,28 @@ class NavList(QtWidgets.QTableView):
         self.SelectionBehavior(1)
         self.SelectionMode(7)
         self.State(2)
-        self.verticalHeader().setDefaultSectionSize(128)
-        # self.hv.sectionMoved.connect(self.hellow)
-        # self.hv.swapSections(0, 4)
+
+        # Show columns for tab
         if "columns" in tab_info:
-            i = 0
-            for h in self.headers:
+            for idx, h in enumerate(self.headers):
                 flag = 0
-                for ch in tab_info["columns"]:
-                    if h.caption == ch[0]:
+                for col in tab_info["columns"]:
+                    if h.caption == col[0]:
                         flag = 1
                         break
-                if not flag:
-                    self.hv.hideSection(i)
+                if not flag and idx != 0:
+                    self.hv.hideSection(idx)
                     h.visible = False
-                i += 1
+                elif col[2] != -1:
+                    vis_ind = self.hv.visualIndex(idx)
+                    self.hv.moveSection(vis_ind, col[2])
+            # Capture movements made before connecting the signal
+            self.columns_moved(0, 0, 0)
+        # Connect to save column movements
+        self.hv.sectionMoved.connect(self.columns_moved)
+        self.hv.visibility_changed.connect(self.columns_visibility_changed)
+        self.columns_visibility_changed(4, "Thumbnails",
+                                        self.headers[4].visible)
 
     @property
     def location(self):
@@ -772,3 +771,16 @@ class NavList(QtWidgets.QTableView):
         files = [os.path.join(self.location, self.model.itemData(index).get(0))
                  for index in self.selectionModel().selectedIndexes()]
         return files
+
+    def columns_moved(self, ind, old, new):
+        """Capture the new visual indices for each of the columns."""
+        for idx, h in enumerate(self.headers):
+            h.position = self.hv.visualIndex(idx)
+
+    def columns_visibility_changed(self, idx, cap, visible):
+        """Update row height if Thumnails column visibility is changed."""
+        if cap == "Thumbnails":
+            if visible:
+                self.verticalHeader().setDefaultSectionSize(128)
+            else:
+                self.verticalHeader().setDefaultSectionSize(20)
