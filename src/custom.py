@@ -42,7 +42,7 @@ class NavCheckBoxDelegate(QtWidgets.QStyledItemDelegate):
             offset = self.parent.hv.sectionPosition(self.ind)
             x = event.pos().x()
             if x > offset and x < offset + 20:
-                self.parent.selectionModel().select(
+                self.parent.view.selectionModel().select(
                     index, QtCore.QItemSelectionModel.Toggle)
                 return True
         return False

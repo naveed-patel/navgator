@@ -50,7 +50,7 @@ class NavPane(QtWidgets.QFrame):
         # line edit for filtering
         self.filter_edit = QtWidgets.QLineEdit()
         self.filter_edit.textChanged.connect(
-            lambda: self.tabbar.currentWidget().tab.set_filter(
+            lambda: self.tabbar.currentWidget().set_filter(
                     self.filter_edit.text()))
         self.splitter.addWidget(self.tree)
         self.splitter.addWidget(self.tabbar)
@@ -64,7 +64,7 @@ class NavPane(QtWidgets.QFrame):
         self.setLayout(grid)
         if pane_info["visible"]:
             Pub.subscribe(f"Panes.{self.pid}", self.update_status_bar)
-            self.update_gui(self.tabbar.currentWidget().tab.location)
+            self.update_gui(self.tabbar.currentWidget().location)
             # start monitoring active tab for refreshing
             NavWatcher.add_path(self.location, self.change_detected)
             NavWatcher.start()
@@ -74,11 +74,11 @@ class NavPane(QtWidgets.QFrame):
     def set_visibility(self, visibility):
         """Toggle pane visibility."""
         if visibility:
-            self.location = self.tabbar.currentWidget().tab.location
+            self.location = self.tabbar.currentWidget().location
             self.update_gui(self.location)
             Pub.subscribe(f"Panes.{self.pid}", self.update_status_bar)
             NavWatcher.add_path(self.location, self.change_detected)
-            self.tabbar.currentWidget().tab.load_tab()
+            self.tabbar.currentWidget().load_tab()
         else:
             NavWatcher.remove_path(self.location, self.change_detected)
             Pub.unsubscribe(f"Panes.{self.pid}", self.update_status_bar)
@@ -86,14 +86,14 @@ class NavPane(QtWidgets.QFrame):
     def change_detected(self, evt, loc: str):
         """Informs current tab if its current directory was changed."""
         if loc == self.location:
-            self.tabbar.currentWidget().tab.change_detected(evt)
-            self.sb.showMessage(self.tabbar.currentWidget().tab.status_info)
+            self.tabbar.currentWidget().change_detected(evt)
+            self.sb.showMessage(self.tabbar.currentWidget().status_info)
 
     def eventFilter(self, obj, event):
         """Reimplemented to handle active pane."""
         if event.type() == QtCore.QEvent.MouseButtonPress:
             # logger.debug(f"{self.pid}: {event} {event.type()} for {obj}")
-            self.location = self.tabbar.currentWidget().tab.location
+            self.location = self.tabbar.currentWidget().location
             try:
                 if os.getcwd() != self.location:
                     os.chdir(self.location)
@@ -121,8 +121,8 @@ class NavPane(QtWidgets.QFrame):
         """Handles tree navigation."""
         loc = self.tree.model.filePath(index)
         logger.debug(f"{self.pid}: Tree Navigation: {loc}")
-        ret = self.tabbar.currentWidget().tab.navigate(loc)
-        self.sb.showMessage(self.tabbar.currentWidget().tab.status_info)
+        ret = self.tabbar.currentWidget().navigate(loc)
+        self.sb.showMessage(self.tabbar.currentWidget().status_info)
         if ret:
             self.abar.setText(loc)
             self.location = loc
@@ -162,8 +162,8 @@ class NavPane(QtWidgets.QFrame):
                     Pub.notify("App", f"{self.pid}: Alias {loc} not set.")
                     self.abar.setText(self.location)
                     return
-        ret = self.tabbar.currentWidget().tab.navigate(loc)
-        self.sb.showMessage(self.tabbar.currentWidget().tab.status_info)
+        ret = self.tabbar.currentWidget().navigate(loc)
+        self.sb.showMessage(self.tabbar.currentWidget().status_info)
         if ret:
             self.location = loc
         else:
@@ -171,7 +171,7 @@ class NavPane(QtWidgets.QFrame):
 
     def tab_changed(self):
         """Update GUI elements to reflect the tab change."""
-        self.update_gui(self.tabbar.currentWidget().tab.location)
+        self.update_gui(self.tabbar.currentWidget().location)
 
     def position_tree(self, loc: str):
         """Repositions tree based on the currently navigated folder."""
@@ -194,20 +194,20 @@ class NavPane(QtWidgets.QFrame):
         else:
             self.abar.setText(loc)
         # load tab if not already loaded
-        self.tabbar.currentWidget().tab.load_tab()
+        self.tabbar.currentWidget().load_tab()
         self.tabbar.currentWidget().bcbar.create_crumbs(loc)
         self.check_navigation_options()
-        self.filter_edit.setText(self.tabbar.currentWidget().tab.filter_text)
-        self.sb.showMessage(self.tabbar.currentWidget().tab.status_info)
+        self.filter_edit.setText(self.tabbar.currentWidget().filter_text)
+        self.sb.showMessage(self.tabbar.currentWidget().status_info)
         self.pane_updated.emit(self)
 
     def check_navigation_options(self):
         """Checks if can navigate up/back/foreward"""
-        self.can_go_up = True if self.tabbar.currentWidget().tab.location \
+        self.can_go_up = True if self.tabbar.currentWidget().location \
             != os.sep else False
-        self.can_go_back = True if self.tabbar.currentWidget().tab.history \
+        self.can_go_back = True if self.tabbar.currentWidget().history \
             else False
-        self.can_go_forward = True if self.tabbar.currentWidget().tab.future \
+        self.can_go_forward = True if self.tabbar.currentWidget().future \
             else False
 
     def update_status_bar(self, msg):

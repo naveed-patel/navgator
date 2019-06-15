@@ -273,13 +273,34 @@ class NavItemModel(QtCore.QAbstractItemModel):
             else:
                 self.files[index.row()][self.state] &= ~NavStates.IS_SELECTED
                 self.selsize -= to_bytes(self.files[index.row()][2])
+            # Emit signal to select row only if not invoked by it
+            if sys._getframe().f_back.f_code.co_name == "__init__":
+                self.dataChanged.emit(index, index)
             return True
+        elif role == QtCore.Qt.EditRole:
+            r = index.row()
+            c = index.column()
+            if c == 0:
+                old = self.files[r][c]
+                logger.debug(f"Rename {old} to {value}")
+                self.rename(old, value)
+        # self.dataChanged.emit(index, index)
         return False
 
-    def generatePixmap(self, value):
-        pixmap = QtGui.QPixmap()
-        pixmap.load(value)
-        return pixmap
+    def rename(self, old, new):
+        if os.path.exists(f"{new}"):
+            logger.error(f"{self.parent.location}: {new} - Exists")
+            Pub.notify("App", f"{self.pid}: {new} - exists.")
+        else:
+            logger.info(f"{self.parent.location}: Rename {old} to {new}")
+            try:
+                os.rename(old, new)
+                Pub.notify(f"App.{self.pid}.Tab.Files.Renamed",
+                           f"{self.pid}: {old} renamed to {new}")
+            except OSError:
+                logger.error(f"{self.parent.location}: Error renaming "
+                             f"from {old} to {new}", exc_info=True)
+                Pub.notify("App", f"{self.pid}: Error renaming.")
 
     def get_selection_stats(self):
         """Get stats of selected items"""

@@ -6,6 +6,12 @@
 
 >**Navgator** is a multi-paned multi-tabbed file manager
 
+**New in v0.4**
+```sh
+++ Icons View
+++ List View
+```
+
 **New in v0.3**
 ```sh
 ++ Thumbnails

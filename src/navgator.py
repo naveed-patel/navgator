@@ -5,7 +5,7 @@ import pathlib
 import sys
 import subprocess
 from PyQt5 import QtGui, QtCore, QtWidgets
-from .core import Nav
+from .core import Nav, NavView
 from .custom import NavTree
 from .helper import logger, deep_merge
 from .navwatcher import NavWatcher
@@ -112,7 +112,7 @@ class Navgator(QtWidgets.QMainWindow):
         self.show()
         # self.mainThreadID = QtCore.QThread.currentThread().currentThreadId()
         # Focus active pane and tab
-        self.active_pane.tabbar.currentWidget().tab.setFocus()
+        self.active_pane.tabbar.currentWidget().view.setFocus()
         if Nav.conf["window"]["statusbar"]:
             Pub.subscribe("App", self.update_status_bar)
             self.sb.show()
@@ -136,95 +136,95 @@ class Navgator(QtWidgets.QMainWindow):
                     QtWidgets.QStyle.SP_ArrowBack),
                 "shortcut": "Backspace",
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
-                              tab.go_back()),
+                              go_back()),
             },
             "forward": {
                 "caption": "Go &Forward",
                 "icon": self.style().standardIcon(
                     QtWidgets.QStyle.SP_ArrowForward),
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
-                              tab.go_forward()),
+                              go_forward()),
             },
             "up": {
                 "caption": "Go &Up",
                 "icon": self.style().standardIcon(
                     QtWidgets.QStyle.SP_ArrowUp),
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
-                              tab.go_up()),
+                              go_up()),
             },
             "rename": {
                 "caption": "&Rename",
                 "shortcut": "F2",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.rename_file()),
+                              currentWidget().rename_file()),
             },
             "cut": {
                 "caption": "C&ut",
                 "shortcut": "Ctrl+X",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.copy(cut=True)),
+                              currentWidget().copy(cut=True)),
             },
             "copy": {
                 "caption": "&Copy",
                 "shortcut": "Ctrl+C",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.copy()),
+                              currentWidget().copy()),
             },
             "paste": {
                 "caption": "&Paste",
                 "shortcut": "Ctrl+V",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.paste()),
+                              currentWidget().paste()),
             },
             "trash": {
                 "caption": "&Trash",
                 "shortcut": "del",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.trash()),
+                              currentWidget().trash()),
             },
             "delete": {
                 "caption": "&Delete",
                 "shortcut": "Shift+del",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.delete()),
+                              currentWidget().delete()),
             },
             "del_dir_up": {
                 "caption": "Delete Dir Up",
                 "shortcut": "Ctrl+del",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.del_dir_up()),
+                              currentWidget().del_dir_up()),
             },
             "new_file": {
                 "caption": "&New File",
                 "shortcut": "Ctrl+N",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.new_file("file")),
+                              currentWidget().new_file("file")),
                 "icon": self.style().standardIcon(QtWidgets.QStyle.SP_FileIcon)
             },
             "new_folder": {
                 "caption": "New &Folder",
                 "shortcut": "Ctrl+Shift+N",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.new_file("folder")),
+                              currentWidget().new_file("folder")),
                 "icon": self.style().standardIcon(QtWidgets.QStyle.SP_DirIcon),
             },
             "select_all": {
                 "caption": "&Select All",
                 "shortcut": "Ctrl+A",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.selectColumn(0)),
+                              currentWidget().updateModel(0, 1)),
             },
             "clear_all": {
                 "caption": "&Clear All",
                 "shortcut": "Ctrl+Shift+A",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.clearSelection()),
+                              currentWidget().updateModel(0, 0)),
             },
             "invert": {
                 "caption": "&Invert Select",
                 "shortcut": "Ctrl+Shift+I",
                 "triggered": (lambda: self.active_pane.tabbar.
-                              currentWidget().tab.invert_selection()),
+                              currentWidget().invert_selection()),
             },
             "new_tab": {
                 "caption": "&New Tab",
@@ -299,6 +299,26 @@ class Navgator(QtWidgets.QMainWindow):
                 "shortcut": "Ctrl+Shift+G",
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
                               bcbar.paste_and_go()),
+            },
+            "details_view": {
+                "caption": "&Details",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Details))
+            },
+            "list_view": {
+                "caption": "&List",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.List, 16, 16))
+            },
+            "icons_view": {
+                "caption": "&Icons",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Icons, 128, 128))
+            },
+            "thumbnails": {
+                "caption": "&Thumbnails",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Thumbnails, 128, 128))
             }
         }
 
@@ -338,6 +358,7 @@ class Navgator(QtWidgets.QMainWindow):
         items = {
             "file": {"caption": "&File"},
             "edit": {"caption": "&Edit"},
+            "view": {"caption": "&View"},
             "tabs": {"caption": "&Tabs"},
             "user": {"caption": "&User", "sm": {}},
             "window": {"caption": "&Window", "sm": {}}
@@ -360,6 +381,11 @@ class Navgator(QtWidgets.QMainWindow):
                     Nav.actions["invert"],
                 ]
             }
+        ]
+
+        items["view"]["sm"] = [
+            Nav.actions["details_view"], Nav.actions["list_view"],
+            Nav.actions["icons_view"],  # Nav.actions["thumbnails"]
         ]
 
         items["tabs"]["sm"] = [
@@ -423,7 +449,7 @@ class Navgator(QtWidgets.QMainWindow):
     def invoke_user_command(self, command: str, args: str):
         """Invokes customised user commands."""
         if args == "%F":
-            item = " ".join(self.active_pane.tabbar.currentWidget().tab.
+            item = " ".join(self.active_pane.tabbar.currentWidget().
                             get_selected_items())
         else:
             item = self.active_pane.location
@@ -486,7 +512,7 @@ class Navgator(QtWidgets.QMainWindow):
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.ToolTip:
             if obj.text() == "Go Back":
-                obj.setToolTip(self.active_pane.tabbar.currentWidget().tab.
+                obj.setToolTip(self.active_pane.tabbar.currentWidget().
                                history[-1])
             elif obj.text() == "Go Forward":
                 try:
@@ -528,9 +554,9 @@ class Navgator(QtWidgets.QMainWindow):
                 "total": self.panes[p].tabbar.count(),
                 "active": self.panes[p].tabbar.currentIndex(), }
             for j in range(Nav.conf["panes"][paneid]["tabs"]["total"]):
-                tab = self.panes[p].tabbar.widget(j).tab
+                tab = self.panes[p].tabbar.widget(j)
                 headers = []
-                for h in tab.headers:
+                for h in tab.header:
                     if h.visible:
                         headers.append([h.caption, h.size, h.position])
 

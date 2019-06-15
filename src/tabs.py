@@ -12,9 +12,8 @@ from .breadcrumbs import NavBreadCrumbsBar
 from .helper import logger, humansize
 from .pub import Pub
 from .model import NavItemModel
-from .custom import (NavCheckBoxDelegate, NavSortFilterProxyModel,
-                     NavHeaderView, NavColumn)
-from .core import Nav
+from .custom import (NavSortFilterProxyModel, NavHeaderView, NavColumn)
+from .core import Nav, NavView
 
 
 class NavTabWidget(QtWidgets.QTabWidget):
@@ -41,9 +40,9 @@ class NavTabWidget(QtWidgets.QTabWidget):
     def new_tab(self, tab_info={}):
         """Creates a new tab with default/provided values."""
         t = NavTab(tab_info, parent_id=self.pid)
-        t.tab.location_changed.connect(self.update_gui_with_tab)
+        t.location_changed.connect(self.update_gui_with_tab)
         i = self.addTab(t, tab_info["location"])
-        self.set_caption(i, caption=t.tab.caption, loc=t.tab.location)
+        self.set_caption(i, caption=t.caption, loc=t.location)
         self.tab_created.emit()  # install filter for new tabs
 
     def update_gui_with_tab(self, loc):
@@ -162,29 +161,14 @@ class NavTabWidget(QtWidgets.QTabWidget):
 class NavTab(QtWidgets.QFrame):
     """Class to handle base skeleton for tabs."""
     location_changed = QtCore.pyqtSignal(str)
-
-    def __init__(self, tab_info, parent_id):
-        super().__init__()
-        self.bcbar = NavBreadCrumbsBar("/")
-        self.tab = NavList(tab_info, parent_id)
-        self.bcbar.clicked.connect(self.tab.navigate)
-        lyt = QtWidgets.QVBoxLayout()
-        lyt.setSpacing(0)
-        lyt.setContentsMargins(0, 0, 0, 0)
-        lyt.addWidget(self.bcbar)
-        lyt.addWidget(self.tab)
-        self.setLayout(lyt)
-
-
-class NavList(QtWidgets.QTableView):
-    location_changed = QtCore.pyqtSignal(str)
     status_updated = QtCore.pyqtSignal(str)
 
     def __init__(self, tab_info, parent_id):
         self.mutex = QtCore.QMutex()
         super().__init__()
         self.pid = parent_id
-        self.setWordWrap(False)
+        self.bcbar = NavBreadCrumbsBar("/")
+        self.bcbar.clicked.connect(self.navigate)
         self._offset = QtCore.QPoint(30, 30)
         self.history = collections.deque(maxlen=64)
         self.future = collections.deque(maxlen=64)
@@ -208,8 +192,6 @@ class NavList(QtWidgets.QTableView):
         self.status_info = ''
         self.filter_text = ''
         self._loading = False
-        self.rubberBand = QtWidgets.QRubberBand(
-            QtWidgets.QRubberBand.Rectangle, self)
         try:
             self.sort_column = int(tab_info["sort_column"])
         except (KeyError, TypeError):
@@ -218,46 +200,29 @@ class NavList(QtWidgets.QTableView):
             self.sort_order = int(tab_info["sort_order"])
         except (KeyError, TypeError):
             self.sort_order = 0
-        self.setAlternatingRowColors(True)
-        self.inline_rename = False
-        self.setSelectionBehavior(self.SelectItems)
-        self.setSortingEnabled(True)
-        self.setEditTriggers(QtWidgets.QAbstractItemView.EditKeyPressed)
 
-        self.headers = [
+        self.header = [
             NavColumn("Name", 300),
             NavColumn("Ext", 50),
             NavColumn("Size", 100),
             NavColumn("Modified", 150),
             NavColumn("Thumbnails", 128)
         ]
-        self.vmod = NavItemModel(self, self.headers)
-        self.hv = NavHeaderView(self.headers)
-        self.hv.setSectionsMovable(True)
-        self.setItemDelegateForColumn(0, NavCheckBoxDelegate(self, 0))
-        self.hv.setSectionsClickable(True)
-        self.hv.setHighlightSections(True)
-        self.hv.clicked.connect(self.updateModel)
-        self.hv.setModel(self.vmod)
-        self.setHorizontalHeader(self.hv)
-        self.setSortingEnabled(True)
-        self.model = NavSortFilterProxyModel(self)
-        self.model.setSourceModel(self.vmod)
-        self.model.setFilterKeyColumn(0)
-        self.setModel(self.model)
-        self.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-        self.selectionModel().selectionChanged.connect(self.rows_selected)
-        self.horizontalHeader().sortIndicatorChanged.connect(
-                                                    self.sortIndicatorChanged)
-        self.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop &
-                             ~QtWidgets.QAbstractItemView.InternalMove)
-        self.SelectionBehavior(1)
-        self.SelectionMode(7)
-        self.State(2)
+        self.model = NavItemModel(self, self.header)
+        self.proxy = NavSortFilterProxyModel(self)
+        self.proxy.setSourceModel(self.model)
+        self.proxy.setFilterKeyColumn(0)
+        self.lv = self.tv = None
+        self.init_table_view()
+        self.init_list_view()
+        self.view = self.tv
+        self.vtype = NavView.Details
+        self.rubberBand = QtWidgets.QRubberBand(
+            QtWidgets.QRubberBand.Rectangle, self.view.viewport())
 
         # Show columns for tab
         if "columns" in tab_info:
-            for idx, h in enumerate(self.headers):
+            for idx, h in enumerate(self.header):
                 flag = 0
                 for col in tab_info["columns"]:
                     if h.caption == col[0]:
@@ -270,12 +235,106 @@ class NavList(QtWidgets.QTableView):
                     vis_ind = self.hv.visualIndex(idx)
                     self.hv.moveSection(vis_ind, col[2])
             # Capture movements made before connecting the signal
+            self.columns_visibility_changed(4, "Thumbnails",
+                                            self.header[4].visible)
             self.columns_moved(0, 0, 0)
         # Connect to save column movements
         self.hv.sectionMoved.connect(self.columns_moved)
         self.hv.visibility_changed.connect(self.columns_visibility_changed)
-        self.columns_visibility_changed(4, "Thumbnails",
-                                        self.headers[4].visible)
+        self.lyt = QtWidgets.QVBoxLayout()
+        self.lyt.setSpacing(0)
+        self.lyt.setContentsMargins(0, 0, 0, 0)
+        self.lyt.addWidget(self.bcbar)
+        self.lyt.addWidget(self.view)
+        self.setLayout(self.lyt)
+        self.install_filters()
+        self.proxy.dataChanged.connect(self.row_sel)
+
+    def init_header(self):
+        """Initializes a header with checkbox selection."""
+        self.hv = NavHeaderView(self.header)
+        self.hv.setSectionsMovable(True)
+        self.hv.setSectionsClickable(True)
+        self.hv.setHighlightSections(True)
+        self.hv.clicked.connect(self.updateModel)
+        self.hv.setModel(self.model)
+
+    def init_table_view(self):
+        """Initialize Details View."""
+        self.tv = QtWidgets.QTableView()
+        self.init_header()
+        self.tv.setWordWrap(False)
+        self.tv.setSelectionBehavior(self.tv.SelectItems)
+        self.tv.setEditTriggers(QtWidgets.QAbstractItemView.EditKeyPressed)
+        self.tv.setHorizontalHeader(self.hv)
+        self.tv.setSortingEnabled(True)
+        self.tv.setAlternatingRowColors(True)
+        self.tv.setModel(self.proxy)
+        self.tv.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.tv.horizontalHeader().sortIndicatorChanged.connect(
+                                                    self.sortIndicatorChanged)
+        self.tv.SelectionBehavior(1)
+        self.tv.SelectionMode(7)
+        self.tv.selectionModel().selectionChanged.connect(self.rows_selected)
+        self.tv.doubleClicked.connect(self.double_clicked)
+        self.tv.setDragDropMode(
+                QtWidgets.QAbstractItemView.DragDrop &
+                ~QtWidgets.QAbstractItemView.InternalMove)
+
+    def init_list_view(self):
+        """Initialize List View."""
+        self.lv = QtWidgets.QListView()
+        self.lv.setWordWrap(True)
+        self.lv.setMovement(QtWidgets.QListView.Snap)
+        self.lv.setResizeMode(QtWidgets.QListView.Adjust)
+        self.lv.setDragEnabled(True)
+        self.lv.setDragDropMode(QtWidgets.QAbstractItemView.DragDrop &
+                                ~QtWidgets.QAbstractItemView.InternalMove)
+        self.lv.setSelectionBehavior(self.lv.SelectItems)
+        self.lv.setEditTriggers(QtWidgets.QAbstractItemView.EditKeyPressed)
+        self.lv.setAlternatingRowColors(True)
+        self.lv.setModel(self.proxy)
+        self.lv.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        self.lv.setUniformItemSizes(True)
+        self.lv.SelectionBehavior(1)
+        self.lv.SelectionMode(7)
+        self.lv.selectionModel().selectionChanged.connect(self.rows_selected)
+        self.lv.doubleClicked.connect(self.double_clicked)
+
+    def switch_view(self, new_view, width=32, height=32):
+        """Switch between views"""
+        if new_view == NavView.Details:
+            if self.tv is not self.view:
+                selections = self.view.selectionModel().selection()
+                self.lyt.removeWidget(self.view)
+                self.view.setGeometry(0, 0, 0, 0)
+                self.view = self.tv
+                self.lyt.addWidget(self.view)
+                self.view.selectionModel().select(
+                    selections, QtCore.QItemSelectionModel.ClearAndSelect)
+                self.vtype = NavView.Details
+            return
+        elif self.lv is not self.view:
+            selections = self.view.selectionModel().selection()
+            self.lyt.removeWidget(self.view)
+            self.view.setGeometry(0, 0, 0, 0)
+            self.view = self.lv
+            self.lyt.addWidget(self.view)
+            self.view.selectionModel().select(
+                selections, QtCore.QItemSelectionModel.ClearAndSelect)
+            self.vtype = NavView.List
+
+        if new_view == NavView.List:
+            self.view.setViewMode(QtWidgets.QListView.ListMode)
+            self.lv.setIconSize(QtCore.QSize(width, height))
+        elif new_view == NavView.Icons:
+            self.view.setViewMode(QtWidgets.QListView.IconMode)
+            self.lv.setIconSize(QtCore.QSize(width, height))
+
+    def install_filters(self):
+        """Install event filter in all children of the panel."""
+        for widget in self.findChildren(QtWidgets.QWidget):
+            widget.installEventFilter(self)
 
     @property
     def location(self):
@@ -290,19 +349,76 @@ class NavList(QtWidgets.QTableView):
     def set_filter(self, filter_text):
         """Apply the filter provided in filter box."""
         self.filter_text = filter_text
-        self.model.setFilterCaseSensitivity(False)
-        self.model.setFilterRegExp(filter_text)
-        for i in range(self.model.rowCount()):
-            index = self.model.index(i, 0)
-            if index not in self.selectionModel().selectedIndexes():
-                self.model.setData(index, QtCore.Qt.Unchecked,
+        self.proxy.setFilterCaseSensitivity(False)
+        self.proxy.setFilterRegExp(filter_text)
+        for i in range(self.proxy.rowCount()):
+            index = self.proxy.index(i, 0)
+            if index not in self.view.selectionModel().selectedIndexes():
+                self.proxy.setData(index, QtCore.Qt.Unchecked,
                                    QtCore.Qt.CheckStateRole)
 
-    def mouseDoubleClickEvent(self, e):
-        """Reimplemented to handle mouse double click event."""
-        index = self.indexAt(e.pos())
-        if index == self.currentIndex():
-            item = self.model.itemData(index).get(0)
+    def eventFilter(self, obj, event):
+        """Reimplemented to handle active pane."""
+        if self.vtype == NavView.Details:
+            if event.type() == QtCore.QEvent.MouseButtonRelease:
+                self.tv_mouseReleaseEvent(event)
+            elif event.type() == QtCore.QEvent.MouseButtonPress:
+                self.tv_mousePressEvent(event)
+            elif event.type() == QtCore.QEvent.MouseMove:
+                self.tv_mouseMoveEvent(event)
+        return False
+
+    def tv_mousePressEvent(self, event):
+        """Reimplemented for custom handling."""
+        self.origin = event.pos()
+        self._modifier = event.modifiers()
+        if self.view.indexAt(self.origin).column() != 0:
+            self.view.setDragDropMode(QtWidgets.QAbstractItemView.DropOnly)
+            self._selection = self.view.selectionModel().selection()
+            self.rubberBand.setGeometry(QtCore.QRect(self.origin,
+                                                     QtCore.QSize()))
+            self.rubberBand.show()
+        else:
+            self.view.setDragDropMode(
+                QtWidgets.QAbstractItemView.DragDrop &
+                ~QtWidgets.QAbstractItemView.InternalMove)
+        # super().mousePressEvent(event)
+
+    def tv_mouseMoveEvent(self, event):
+        """Reimplemented for custom handling."""
+        if self.rubberBand.isVisible():
+            pos = event.pos()
+            self.rubberBand.setGeometry(
+                QtCore.QRect(self.origin, pos).normalized())
+            rect = self.rubberBand.geometry()
+            tl = rect.topLeft()
+            br = rect.bottomRight()
+            qis = QtCore.QItemSelection(self.view.indexAt(tl),
+                                        self.view.indexAt(br))
+            mode = QtCore.QItemSelectionModel.ClearAndSelect
+            if self._modifier == QtCore.Qt.ControlModifier:
+                mode = QtCore.QItemSelectionModel.Clear | \
+                       QtCore.QItemSelectionModel.Toggle
+                qis.merge(self._selection, mode)
+            if self._modifier == QtCore.Qt.ShiftModifier:
+                qis.merge(self._selection, mode)
+            self.view.selectionModel().select(qis, mode)
+            event.accept()
+
+    def tv_mouseReleaseEvent(self, event):
+        """Reimplement for custom handling."""
+        # Unset selection if selection rectangle was drawn and hide rectangle
+        if self.rubberBand.isVisible():
+            self.rubberBand.hide()
+            self._selection = None
+            event.accept()
+        else:
+            super().mouseReleaseEvent(event)
+
+    def double_clicked(self, index):
+        """Get details to open the double clicked item."""
+        if index == self.view.currentIndex():
+            item = self.proxy.itemData(index).get(0)
         else:
             item = None
         if item:
@@ -372,30 +488,32 @@ class NavList(QtWidgets.QTableView):
     def latest_history(self):
         return self.history[0]
 
+    def row_sel(self, a, b):
+        """Toggle row selection on checkbox click."""
+        self.view.selectionModel().select(a, QtCore.QItemSelectionModel.Toggle)
+
+    def model_changed(self, a, b):
+        logger.debug(f"called {a} {b}")
+
     def rows_selected(self, sel, desel):
         """Handle row (de)selections."""
-        # logger.debug(f"Caller: {sys._getframe().f_back.f_code.co_name}")
-        # Workaround to prevent random deselection on file deletion
-        if sys._getframe().f_back.f_code.co_name == "__init__":
-            logger.debug(f"Ignoring row (de)selection. Workaround.")
-            return
         for index in sel.indexes():
-            self.model.setData(index, QtCore.Qt.Checked,
+            self.proxy.setData(index, QtCore.Qt.Checked,
                                QtCore.Qt.CheckStateRole)
         for index in desel.indexes():
-            if not self.model.itemData(index):
+            if not self.proxy.itemData(index):
                 continue
-            # logger.debug(f"Deselected: {self.model.itemData(index).get(0)}")
+
             if self.filter_text == "":
-                self.model.setData(index, QtCore.Qt.Unchecked,
+                self.proxy.setData(index, QtCore.Qt.Unchecked,
                                    QtCore.Qt.CheckStateRole)
 
-        selstat = len(self.selectionModel().selectedIndexes())
+        selstat = len(self.view.selectionModel().selectedIndexes())
         if selstat:
-            selcount, selsize = self.vmod.get_selection_stats()
+            selcount, selsize = self.model.get_selection_stats()
             selinfo = f" Selected: {selcount} : " \
                       f"{humansize(selsize)}"
-            if (selstat >= self.model.rowCount()):
+            if (selstat >= self.proxy.rowCount()):
                 self.hv.updateCheckState(1)
             else:
                 self.hv.updateCheckState(2)
@@ -408,65 +526,26 @@ class NavList(QtWidgets.QTableView):
         if index != 0:
             return
         if state:
-            self.selectColumn(index)
+            if self.vtype == NavView.Details:
+                self.view.selectColumn(index)
+            else:
+                self.view.selectAll()
         else:
-            self.clearSelection()
+                self.view.clearSelection()
 
     def invert_selection(self):
         """Toggles (de)selection of items in current listing."""
-        for i in range(self.model.rowCount()):
-            ix = self.model.index(i, 0)
-            self.selectionModel().select(ix, QtCore.QItemSelectionModel.Toggle)
-
-    def mousePressEvent(self, event):
-        """Reimplemented for custom handling."""
-        self.origin = event.pos() + self._offset
-        self._modifier = event.modifiers()
-        if self.indexAt(self.origin).column() > 0:
-            # logger.debug(self.indexAt(self.origin).column())
-            # super().mousePressEvent(event)
-            self._selection = self.selectionModel().selection()
-            self.rubberBand.setGeometry(QtCore.QRect(self.origin,
-                                                     QtCore.QSize()))
-            self.rubberBand.show()
-        super().mousePressEvent(event)
-
-    def mouseMoveEvent(self, event):
-        """Reimplemented for custom handling."""
-        if self.rubberBand.isVisible():
-            pos = event.pos() + self._offset
-            self.rubberBand.setGeometry(
-                QtCore.QRect(self.origin, pos).normalized())
-            rect = self.rubberBand.geometry()
-            tl = rect.topLeft() - self._offset
-            br = rect.bottomRight() - self._offset
-            qis = QtCore.QItemSelection(self.indexAt(tl), self.indexAt(br))
-            mode = QtCore.QItemSelectionModel.ClearAndSelect
-            if self._modifier == QtCore.Qt.ControlModifier:
-                mode = QtCore.QItemSelectionModel.Clear | \
-                       QtCore.QItemSelectionModel.Toggle
-                qis.merge(self._selection, mode)
-            if self._modifier == QtCore.Qt.ShiftModifier:
-                qis.merge(self._selection, mode)
-            self.selectionModel().select(qis, mode)
-        else:
-            super().mouseMoveEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        """Reimplement for custom handling."""
-        # Unset selection if selection rectangle was drawn and hide rectangle
-        if self.rubberBand.isVisible():
-            self.rubberBand.hide()
-            self._selection = None
-        else:
-            super().mouseReleaseEvent(event)
+        for i in range(self.proxy.rowCount()):
+            ix = self.proxy.index(i, 0)
+            self.view.selectionModel().select(
+                ix, QtCore.QItemSelectionModel.Toggle)
 
     def keyPressEvent(self, event):
         """Reimplemented keyPressEvent for custom handling."""
         if event.key() == QtCore.Qt.Key_Return:
-            index = self.currentIndex()
-            item = self.model.itemData(index).get(0)
-            if self.state() != QtWidgets.QAbstractItemView.EditingState:
+            index = self.view.currentIndex()
+            item = self.proxy.itemData(index).get(0)
+            if self.view.state() != QtWidgets.QAbstractItemView.EditingState:
                 loc = os.path.join(self.location, item)
                 self.opener(loc)
         elif event.key() == QtCore.Qt.Key_Backspace:
@@ -486,23 +565,24 @@ class NavList(QtWidgets.QTableView):
             Pub.notify("App", f"{loc} isn't a directory.")
             return
         if (forced and self._loading is False) or loc != self.location \
-                or self.vmod.last_read < os.stat(loc).st_mtime:
+                or self.model.last_read < os.stat(loc).st_mtime:
             if not forced:
                 self.filter_text = ""
             self.hv.updateCheckState(0)  # Uncheck main checkbox
             self._loading = True
-            self.vmod.list_dir(loc)
+            self.model.list_dir(loc)
             try:
                 free_disk = humansize(shutil.disk_usage(loc)[2])
             except OSError:
                 free_disk = ""
-            self.status_info = f"Files: {self.vmod.fcount}, Dirs: " \
-                f"{self.vmod.dcount} Total: {humansize(self.vmod.total)} " \
+            self.status_info = f"Files: {self.model.fcount}, Dirs: " \
+                f"{self.model.dcount} Total: {humansize(self.model.total)} " \
                 f"Free: {free_disk}"
-            self.sortByColumn(self.sort_column, self.sort_order)
+            if self.vtype == NavView.Details:
+                self.tv.sortByColumn(self.sort_column, self.sort_order)
             self._loading = False
             if self.location != os.path.abspath(loc):
-                self.clearSelection()
+                self.view.clearSelection()
                 self.location = os.path.abspath(loc)
                 self.location_changed.emit(self.location)
 
@@ -513,28 +593,28 @@ class NavList(QtWidgets.QTableView):
         logger.debug(f"{name} {evt.event_type}")
         if evt.event_type == "deleted":
             logger.debug(f"{evt.src_path} deleted in {self.location}")
-            self.vmod.remove_row(name)
+            self.model.remove_row(name)
         elif evt.event_type == "created":
             logger.debug(f"{evt.src_path} created in {self.location}")
-            self.vmod.insert_row(name)
+            self.model.insert_row(name)
         elif evt.event_type == "moved":
             logger.debug(f"{self.location}: Moved {evt.src_path} to "
                          f"{evt.dest_path}")
             new_name = os.path.basename(evt.dest_path)
-            self.vmod.rename_row(name, new_name)
+            self.model.rename_row(name, new_name)
         elif evt.event_type == "modified":
             logger.debug(f"{self.location}: {evt.src_path} Modified")
-            self.vmod.update_row(name)
-        # selstat = len(self.selectionModel().selectedIndexes())
-        selstat = len(self.selectionModel().selectedIndexes())
+            self.model.update_row(name)
+        # selstat = len(self.view.selectionModel().selectedIndexes())
+        selstat = len(self.view.selectionModel().selectedIndexes())
         if selstat:
-            selcount, selsize = self.vmod.get_selection_stats()
+            selcount, selsize = self.model.get_selection_stats()
             selinfo = f" Selected: {selcount} : " \
                       f"{humansize(selsize)}"
         else:
             selinfo = ""
-        self.status_info = f"Files: {self.vmod.fcount}, Dirs: " \
-            f"{self.vmod.dcount} Total: {humansize(self.vmod.total)} " \
+        self.status_info = f"Files: {self.model.fcount}, Dirs: " \
+            f"{self.model.dcount} Total: {humansize(self.model.total)} " \
             f"Free: {humansize(shutil.disk_usage(self.location)[2])} {selinfo}"
 
     def sortIndicatorChanged(self, logicalIndex, sortOrder):
@@ -544,50 +624,20 @@ class NavList(QtWidgets.QTableView):
 
     def rename_file(self):
         """Invokes inline renaming of the current file."""
-        index = self.currentIndex()
+        index = self.view.currentIndex()
         if not index:
             return
-        item = self.model.itemData(index).get(0)
-        logger.debug(f"Rename {item} at {index.row()} {index}")
-        self.edit(index)
-        self.inline_rename = item
-
-    def closeEditor(self, editor, hint):
-        """Re-implemented closeEditor to wrap up inline rename."""
-        if hint == QtWidgets.QAbstractItemDelegate.NoHint:
-            QtWidgets.QTableView.closeEditor(
-                self, editor, QtWidgets.QAbstractItemDelegate.SubmitModelCache)
-        else:
-            QtWidgets.QTableView.closeEditor(self, editor, hint)
-            new_name = editor.text()
-            logger.debug(f"Rename {self.inline_rename} to {new_name}")
-            if os.path.exists(f"{new_name}"):
-                logger.error(f"{self.location}: {new_name} - Already exists")
-                Pub.notify("App", f"{self.pid}: {new_name} - Already exists.")
-            else:
-                logger.info(f"{self.location}: Rename {self.inline_rename} to "
-                            f"{new_name}")
-                try:
-                    os.rename(self.inline_rename, new_name)
-                    Pub.notify(f"App.{self.pid}.Tab.Files.Renamed",
-                               f"{self.pid}: {self.inline_rename} "
-                               f"renamed to {new_name}")
-                except OSError:
-                    logger.error(f"{self.location}: Error renaming from "
-                                 f"{self.inline_rename} to {new_name}",
-                                 exc_info=True)
-                    Pub.notify("App", f"{self.pid}: Error renaming.")
-                    self.vmod.rename_row(new_name, self.inline_rename)
+        self.view.edit(index)
 
     def trash(self):
         """Delete the current list of selected files to trash."""
-        files = [self.model.itemData(index).get(0)
-                 for index in self.selectionModel().selectedIndexes()]
+        files = [self.proxy.itemData(index).get(0)
+                 for index in self.view.selectionModel().selectedIndexes()]
         for f in files:
             fullname = os.path.join(self.location, f)
             try:
                 send2trash(fullname)
-                self.vmod.remove_row(f)
+                self.model.remove_row(f)
             except OSError:
                 logger.error(f"Error deleting file", exc_info=True)
                 Pub.notify("App", f"{self.pid}: Error deleting file",
@@ -595,8 +645,8 @@ class NavList(QtWidgets.QTableView):
 
     def delete(self):
         """Permanently delete the currently selected files."""
-        files = [os.path.join(self.location, self.model.itemData(index).get(0))
-                 for index in self.selectionModel().selectedIndexes()]
+        files = [os.path.join(self.location, self.proxy.itemData(index).get(0))
+                 for index in self.view.selectionModel().selectedIndexes()]
         for f in files:
             try:
                 if os.path.isdir(f):
@@ -650,9 +700,9 @@ class NavList(QtWidgets.QTableView):
     def copy(self, cut=False):
         """Cut/Copy files to clipboard."""
         files = [QtCore.QUrl.fromLocalFile(
-            os.path.join(self.location, self.model.itemData(index).get(0)))
-                 for index in self.selectionModel().selectedIndexes()]
-        mime_data = self.model.mimeData(self.selectedIndexes())
+            os.path.join(self.location, self.proxy.itemData(index).get(0)))
+                 for index in self.view.selectionModel().selectedIndexes()]
+        mime_data = self.proxy.mimeData(self.selectedIndexes())
         if cut:
             data = b'1'  # same as QtCore.QByteArray(0, '1')
             mime_data.setData("application/x-kde-cutselection", data)
@@ -703,9 +753,9 @@ class NavList(QtWidgets.QTableView):
         """Reimplemented to handle drag."""
         drag = QtGui.QDrag(self)
         t = [QtCore.QUrl.fromLocalFile(
-                f"{self.location}{os.sep}{self.model.itemData(index).get(0)}")
-             for index in self.selectionModel().selectedIndexes()]
-        mime_data = self.model.mimeData(self.selectedIndexes())
+                f"{self.location}{os.sep}{self.proxy.itemData(index).get(0)}")
+             for index in self.view.selectionModel().selectedIndexes()]
+        mime_data = self.proxy.mimeData(self.selectedIndexes())
         mime_data.setUrls(t)
         logger.debug(f"Dragging: {mime_data.urls()}")
         drag.setMimeData(mime_data)
@@ -713,6 +763,11 @@ class NavList(QtWidgets.QTableView):
 
     def dragEnterEvent(self, event):
         """Reimplemented to handle drag"""
+        logger.debug("startDrag")
+        if self.rubberBand.isVisible:
+            logger.debug("return")
+            event.accept()
+            return
         m = event.mimeData()
         if m.hasUrls():
             logger.debug(f"{event.mimeData().urls()}")
@@ -732,7 +787,7 @@ class NavList(QtWidgets.QTableView):
         if m.hasUrls():
             logger.debug(f"Dropping urls: {m.urls()}")
             links = []
-            drop_loc = self.model.data(self.indexAt(event.pos()))
+            drop_loc = self.proxy.data(self.view.indexAt(event.pos()))
             if drop_loc is None:
                 drop_loc = self.location
             else:
@@ -768,19 +823,19 @@ class NavList(QtWidgets.QTableView):
 
     def get_selected_items(self):
         """Returns list of selected item."""
-        files = [os.path.join(self.location, self.model.itemData(index).get(0))
-                 for index in self.selectionModel().selectedIndexes()]
+        files = [os.path.join(self.location, self.proxy.itemData(index).get(0))
+                 for index in self.view.selectionModel().selectedIndexes()]
         return files
 
     def columns_moved(self, ind, old, new):
         """Capture the new visual indices for each of the columns."""
-        for idx, h in enumerate(self.headers):
+        for idx, h in enumerate(self.header):
             h.position = self.hv.visualIndex(idx)
 
     def columns_visibility_changed(self, idx, cap, visible):
         """Update row height if Thumnails column visibility is changed."""
         if cap == "Thumbnails":
             if visible:
-                self.verticalHeader().setDefaultSectionSize(128)
+                self.tv.verticalHeader().setDefaultSectionSize(128)
             else:
-                self.verticalHeader().setDefaultSectionSize(20)
+                self.tv.verticalHeader().setDefaultSectionSize(20)

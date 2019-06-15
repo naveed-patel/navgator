@@ -1,3 +1,7 @@
+v0.4.0 2019-06-15 18:47 BST
++ List View
++ Icons View
+
 v0.3.0 2019-06-11 23:39 BST
 + Column positioning can now be saved and restored
 + Checkbox selections works even if Name column isn't first

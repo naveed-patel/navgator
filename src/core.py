@@ -59,3 +59,11 @@ class NavStates(IntFlag):
     """Enum to store state of items."""
     IS_DIR = 1
     IS_SELECTED = 2
+
+
+class NavView(IntFlag):
+    """Enum for different Views"""
+    Details = 1
+    List = 2
+    Icons = 3
+    Thumbnails = 4
