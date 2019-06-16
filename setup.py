@@ -17,7 +17,7 @@ URL = 'https://github.com/naveed-patel/navgator'
 EMAIL = '20777764+naveed-patel@users.noreply.github.com'
 AUTHOR = 'Naveed Patel'
 REQUIRES_PYTHON = '>=3.7.0'
-VERSION = '0.4.0'
+VERSION = '0.4.1'
 
 # What packages are required for this module to be executed?
 REQUIRED = [

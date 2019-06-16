@@ -5,7 +5,7 @@ import pathlib
 import sys
 import subprocess
 from PyQt5 import QtGui, QtCore, QtWidgets
-from .core import Nav, NavView
+from .core import Nav, NavView, NavSize
 from .custom import NavTree
 from .helper import logger, deep_merge
 from .navwatcher import NavWatcher
@@ -308,18 +308,48 @@ class Navgator(QtWidgets.QMainWindow):
             "list_view": {
                 "caption": "&List",
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
-                              switch_view(NavView.List, 16, 16))
+                              switch_view(NavView.List, NavSize.Tiny))
             },
-            "icons_view": {
-                "caption": "&Icons",
+            "small_icons_view": {
+                "caption": "&Small Icons",
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
-                              switch_view(NavView.Icons, 128, 128))
+                              switch_view(NavView.Icons, NavSize.Small))
             },
-            "thumbnails": {
-                "caption": "&Thumbnails",
+            "medium_icons_view": {
+                "caption": "&Medium Icons",
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
-                              switch_view(NavView.Thumbnails, 128, 128))
-            }
+                              switch_view(NavView.Icons, NavSize.Medium))
+            },
+            "large_icons_view": {
+                "caption": "&Large Icons",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Icons, NavSize.Large))
+            },
+            "xl_icons_view": {
+                "caption": "E&xtra Large Icons",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Icons, NavSize.XL))
+            },
+            "SmallThumbs": {
+                "caption": "Small &Thumbnails",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Thumbnails, NavSize.Small))
+            },
+            "MediumThumbs": {
+                "caption": "Medium T&humbnails",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Thumbnails, NavSize.Medium))
+            },
+            "LargeThumbs": {
+                "caption": "Large Th&umbnails",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Thumbnails, NavSize.Large))
+            },
+            "XLThumbs": {
+                "caption": "Extra Large Thum&bnails",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              switch_view(NavView.Thumbnails, NavSize.XL))
+            },
         }
 
         pane_count = Nav.conf["panes"]["total"]
@@ -385,7 +415,10 @@ class Navgator(QtWidgets.QMainWindow):
 
         items["view"]["sm"] = [
             Nav.actions["details_view"], Nav.actions["list_view"],
-            Nav.actions["icons_view"],  # Nav.actions["thumbnails"]
+            Nav.actions["small_icons_view"], Nav.actions["medium_icons_view"],
+            Nav.actions["large_icons_view"], Nav.actions["xl_icons_view"],
+            Nav.actions["SmallThumbs"], Nav.actions["MediumThumbs"],
+            Nav.actions["LargeThumbs"], Nav.actions["XLThumbs"]
         ]
 
         items["tabs"]["sm"] = [
@@ -568,6 +601,8 @@ class Navgator(QtWidgets.QMainWindow):
                         "sort_column": tab.sort_column,
                         "sort_order": tab.sort_order,
                         "columns": headers,
+                        "view": tab.vtype,
+                        "itsize": tab.vsize,
                 }
             Nav.conf["panes"]["active"] = self.active_pane.pid
         with open(Nav.conf_file, "w") as json_file:

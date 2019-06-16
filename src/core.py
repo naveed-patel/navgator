@@ -67,3 +67,19 @@ class NavView(IntFlag):
     List = 2
     Icons = 3
     Thumbnails = 4
+    # SmallIcons = 3
+    # MediumIcons = 4
+    # LargeIcons = 5
+    # XLIcons = 6
+    # SmallThumbs = 7
+    # MediumThumbs = 8
+    # LargeThumbs = 9
+    # XLThumbs = 10
+
+
+class NavSize(IntFlag):
+    Tiny = 1
+    Small = 2
+    Medium = 3
+    Large = 4
+    XL = 5

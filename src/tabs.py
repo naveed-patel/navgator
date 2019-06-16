@@ -13,7 +13,7 @@ from .helper import logger, humansize
 from .pub import Pub
 from .model import NavItemModel
 from .custom import (NavSortFilterProxyModel, NavHeaderView, NavColumn)
-from .core import Nav, NavView
+from .core import Nav, NavView, NavSize
 
 
 class NavTabWidget(QtWidgets.QTabWidget):
@@ -162,6 +162,10 @@ class NavTab(QtWidgets.QFrame):
     """Class to handle base skeleton for tabs."""
     location_changed = QtCore.pyqtSignal(str)
     status_updated = QtCore.pyqtSignal(str)
+    widths = heights = {
+        NavSize.Tiny: 16, NavSize.Small: 64, NavSize.Medium: 96,
+        NavSize.Large: 128, NavSize.XL: 256
+    }
 
     def __init__(self, tab_info, parent_id):
         self.mutex = QtCore.QMutex()
@@ -216,7 +220,6 @@ class NavTab(QtWidgets.QFrame):
         self.init_table_view()
         self.init_list_view()
         self.view = self.tv
-        self.vtype = NavView.Details
         self.rubberBand = QtWidgets.QRubberBand(
             QtWidgets.QRubberBand.Rectangle, self.view.viewport())
 
@@ -249,6 +252,15 @@ class NavTab(QtWidgets.QFrame):
         self.setLayout(self.lyt)
         self.install_filters()
         self.proxy.dataChanged.connect(self.row_sel)
+        try:
+            self.vtype = tab_info["view"]
+        except KeyError:
+            self.vtype = NavView.Details
+        try:
+            self.vsize = tab_info["itsize"]
+        except KeyError:
+            self.vsize = NavSize.Tiny
+        self.switch_view(self.vtype, self.vsize)
 
     def init_header(self):
         """Initializes a header with checkbox selection."""
@@ -285,6 +297,7 @@ class NavTab(QtWidgets.QFrame):
         """Initialize List View."""
         self.lv = QtWidgets.QListView()
         self.lv.setWordWrap(True)
+        self.lv.setTextElideMode(QtCore.Qt.ElideMiddle)
         self.lv.setMovement(QtWidgets.QListView.Snap)
         self.lv.setResizeMode(QtWidgets.QListView.Adjust)
         self.lv.setDragEnabled(True)
@@ -300,9 +313,16 @@ class NavTab(QtWidgets.QFrame):
         self.lv.SelectionMode(7)
         self.lv.selectionModel().selectionChanged.connect(self.rows_selected)
         self.lv.doubleClicked.connect(self.double_clicked)
+        self.setStyleSheet("QCheckBox::indicator {subcontrol-position: top; subcontrol-origin: padding;}")
 
-    def switch_view(self, new_view, width=32, height=32):
+    def switch_view(self, new_view, size=NavSize.Tiny):
         """Switch between views"""
+        self.vtype = new_view
+        self.vsize = size
+        width = self.widths[size]
+        height = self.heights[size]
+        self.model.model_size(width, height)
+
         if new_view == NavView.Details:
             if self.tv is not self.view:
                 selections = self.view.selectionModel().selection()
@@ -312,7 +332,6 @@ class NavTab(QtWidgets.QFrame):
                 self.lyt.addWidget(self.view)
                 self.view.selectionModel().select(
                     selections, QtCore.QItemSelectionModel.ClearAndSelect)
-                self.vtype = NavView.Details
             return
         elif self.lv is not self.view:
             selections = self.view.selectionModel().selection()
@@ -322,14 +341,18 @@ class NavTab(QtWidgets.QFrame):
             self.lyt.addWidget(self.view)
             self.view.selectionModel().select(
                 selections, QtCore.QItemSelectionModel.ClearAndSelect)
-            self.vtype = NavView.List
-
         if new_view == NavView.List:
             self.view.setViewMode(QtWidgets.QListView.ListMode)
+            self.lv.verticalScrollBar().setSingleStep(height)
             self.lv.setIconSize(QtCore.QSize(width, height))
-        elif new_view == NavView.Icons:
+            # self.lv.setGridSize(QtCore.QSize(300, 30))
+            # self.lv.setSpacing(5)
+            self.lv.setWrapping(True)
+        elif new_view in [NavView.Icons, NavView.Thumbnails]:
             self.view.setViewMode(QtWidgets.QListView.IconMode)
             self.lv.setIconSize(QtCore.QSize(width, height))
+            self.lv.setGridSize(QtCore.QSize(width+10, height+30))
+            self.lv.verticalScrollBar().setSingleStep(height+30)
 
     def install_filters(self):
         """Install event filter in all children of the panel."""
@@ -702,7 +725,7 @@ class NavTab(QtWidgets.QFrame):
         files = [QtCore.QUrl.fromLocalFile(
             os.path.join(self.location, self.proxy.itemData(index).get(0)))
                  for index in self.view.selectionModel().selectedIndexes()]
-        mime_data = self.proxy.mimeData(self.selectedIndexes())
+        mime_data = self.proxy.mimeData(self.view.selectionModel().selectedIndexes())
         if cut:
             data = b'1'  # same as QtCore.QByteArray(0, '1')
             mime_data.setData("application/x-kde-cutselection", data)
@@ -755,7 +778,7 @@ class NavTab(QtWidgets.QFrame):
         t = [QtCore.QUrl.fromLocalFile(
                 f"{self.location}{os.sep}{self.proxy.itemData(index).get(0)}")
              for index in self.view.selectionModel().selectedIndexes()]
-        mime_data = self.proxy.mimeData(self.selectedIndexes())
+        mime_data = self.proxy.mimeData(self.view.selectionModel().selectedIndexes())
         mime_data.setUrls(t)
         logger.debug(f"Dragging: {mime_data.urls()}")
         drag.setMimeData(mime_data)

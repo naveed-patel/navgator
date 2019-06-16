@@ -1,6 +1,12 @@
+v0.4.1 2019-06-16 12:05 BST
+++ Other Views. Small, Medium, Large, XL Icons and Thumbnails
++ Views are saved and restored along with size
+! Crash while cut/copy. Fixed
+! List View didn't flow horizontally. Fixed
+
 v0.4.0 2019-06-15 18:47 BST
-+ List View
-+ Icons View
+++ List View
+++ Icons View
 
 v0.3.0 2019-06-11 23:39 BST
 + Column positioning can now be saved and restored

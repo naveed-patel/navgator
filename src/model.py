@@ -5,7 +5,7 @@ import time
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PIL import Image
 from PIL.ImageQt import ImageQt
-from .core import NavStates
+from .core import NavStates, NavView
 from .helper import logger, humansize, to_bytes
 from .pub import Pub
 
@@ -32,7 +32,7 @@ class NavIcon:
 
 class NavItemModel(QtCore.QAbstractItemModel):
     """Custom File System Model for this application."""
-    tw = th = 128
+    tw = th = 64
 
     def __init__(self, parent, header, *args, mylist=[]):
         super().__init__(parent, *args)
@@ -43,7 +43,11 @@ class NavItemModel(QtCore.QAbstractItemModel):
         self.fcount = self.dcount = self.total = 0
         self.last_read = 0
         self.state = -1
-        self.pixmap_cache = {}
+
+    def model_size(self, width, height):
+        """Set the size for icons and thumbnails."""
+        self.tw = width
+        self.th = height
 
     def list_dir(self, d: str):
         """Updates the model with director listing."""
@@ -206,37 +210,27 @@ class NavItemModel(QtCore.QAbstractItemModel):
             value = self.files[row][column]
             if role == QtCore.Qt.EditRole:
                 return value
-            elif column == 4:
-                if role == QtCore.Qt.DecorationRole:
+            elif role == QtCore.Qt.DecorationRole:
+                if column == 4 or (self.parent.vtype == NavView.Thumbnails):
                     try:
                         im = Image.open(f"{self.parent.location}{os.sep}"
                                         f"{self.files[row][0]}")
                         im.thumbnail((self.tw, self.th), Image.ANTIALIAS)
-                        # self.parent.setRowHeight(row, self.th)
                         return QtGui.QImage(ImageQt(im))
                     except Exception:
-                        pass  # Ignore if thumbnails can't be generated
-                    # if self.files[row][0] not in self.pixmap_cache:
-                    #     self.pixmap_cache[self.files[row][0]] = \
-                    #         QtGui.QPixmap(self.files[row][0])
-                    # return QtGui.QImage(
-                    #     self.pixmap_cache[self.files[row][0]]). \
-                    #     scaled(128, 128, QtCore.Qt.KeepAspectRatio)
-                # elif role == QtCore.Qt.SizeHintRole:
-                #     return QtCore.QSize(128, 128)
+                        # Icon if thumbnails can't be generated
+                        return NavIcon.get_icon(self.files[row][0])
+                elif column == 0:
+                    return NavIcon.get_icon(self.files[row][0])
                 else:
                     return None
             elif role == QtCore.Qt.DisplayRole:
-                return value
-            elif column == 0 \
-                    and role == QtCore.Qt.DecorationRole:
-                return NavIcon.get_icon(self.files[row][0])
-            elif role == QtCore.Qt.CheckStateRole:
-                if column == 0:
-                    if self.files[row][self.state] & NavStates.IS_SELECTED:
-                        return QtCore.Qt.Checked
-                    else:
-                        return QtCore.Qt.Unchecked
+                return value if column != 4 else ""
+            elif role == QtCore.Qt.CheckStateRole and column == 0:
+                if self.files[row][self.state] & NavStates.IS_SELECTED:
+                    return QtCore.Qt.Checked
+                else:
+                    return QtCore.Qt.Unchecked
         except IndexError:
             pass
 
