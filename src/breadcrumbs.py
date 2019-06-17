@@ -105,7 +105,10 @@ class NavBreadCrumbsBar(QtWidgets.QFrame):
         # Identify common path
         if self.cwd:
             # logger.debug(self.layout().count())
-            common = os.path.commonpath([self.cwd, path])
+            try:
+                common = os.path.commonpath([self.cwd, path])
+            except ValueError:
+                common = ""
             if common.endswith(os.sep):
                 common = common[:-1]
         else:

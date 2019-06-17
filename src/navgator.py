@@ -1,13 +1,15 @@
 #!/bin/python3
 
 import json
+import os
 import pathlib
+import psutil
 import sys
 import subprocess
 from PyQt5 import QtGui, QtCore, QtWidgets
 from .core import Nav, NavView, NavSize
 from .custom import NavTree
-from .helper import logger, deep_merge
+from .helper import logger, deep_merge, humansize
 from .navwatcher import NavWatcher
 from .panes import NavPane
 from .pub import Pub
@@ -29,6 +31,10 @@ class Navgator(QtWidgets.QMainWindow):
         super().__init__()
         self.title = 'Navgator'
         self.load_settings()
+        self.setWindowIcon(QtGui.QIcon(f"{Nav.app_dir}{os.sep}navgator.ico"))
+        proc_id = os.getpid()
+        self.res_info = psutil.Process(proc_id)
+        self.img_vwr = None
         threadpool = QtCore.QThreadPool()
         threadpool.setMaxThreadCount(1)
         try:
@@ -44,6 +50,7 @@ class Navgator(QtWidgets.QMainWindow):
         self.setFocusPolicy(QtCore.Qt.StrongFocus)
         self.define_actions()
         self.sb = self.statusBar()
+        self.res_label = QtWidgets.QLabel()
         self.update_sb.connect(self.status_bar_update)
         self.main_widget = QtWidgets.QWidget(self)
         self.box = QtWidgets.QHBoxLayout(self.main_widget)
@@ -113,13 +120,17 @@ class Navgator(QtWidgets.QMainWindow):
         # self.mainThreadID = QtCore.QThread.currentThread().currentThreadId()
         # Focus active pane and tab
         self.active_pane.tabbar.currentWidget().view.setFocus()
-        if Nav.conf["window"]["statusbar"]:
-            Pub.subscribe("App", self.update_status_bar)
-            self.sb.show()
-            self.active_pane_changed(self.active_pane)
-            self.sb.showMessage("Ready", 2000)
-        else:
-            self.sb.hide()
+        self.sb.addPermanentWidget(self.res_label)
+        self.active_pane_changed(self.active_pane)
+        Nav.conf["window"]["statusbar"] = not Nav.conf["window"]["statusbar"]
+        self.statusbar_toggle()
+        self.sb.showMessage("Ready", 2000)
+
+    def update_resources(self):
+        """Updates a label with memory usage"""
+        mem = humansize(self.res_info.memory_full_info()[0])
+        cpu = self.res_info.cpu_percent()
+        self.res_label.setText(f"{mem} ({cpu}%)")
 
     def define_actions(self):
         self.actions = {
@@ -350,6 +361,12 @@ class Navgator(QtWidgets.QMainWindow):
                 "triggered": (lambda: self.active_pane.tabbar.currentWidget().
                               switch_view(NavView.Thumbnails, NavSize.XL))
             },
+            "image-viewer": {
+                "caption": "Image Viewer",
+                "triggered": (lambda: self.active_pane.tabbar.currentWidget().
+                              image_viewer()),
+                "shortcut": "F11",
+            }
         }
 
         pane_count = Nav.conf["panes"]["total"]
@@ -524,9 +541,16 @@ class Navgator(QtWidgets.QMainWindow):
         """Toggle the status bar."""
         if Nav.conf["window"]["statusbar"]:
             Pub.unsubscribe("App", self.update_status_bar)
+            try:
+                self.qtimer.stop()
+            except AttributeError:
+                pass  # QTimer wasn't created.
             self.sb.hide()
         else:
             Pub.subscribe("App", self.update_status_bar)
+            self.qtimer = QtCore.QTimer()
+            self.qtimer.timeout.connect(self.update_resources)
+            self.qtimer.start(1000)
             self.sb.show()
         Nav.conf["window"]["statusbar"] = not Nav.conf["window"]["statusbar"]
 

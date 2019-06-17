@@ -31,8 +31,7 @@ class Nav:
             elem = len(defaults)
             for i in range(elem):
                 if cls.conf["dims"][k][i] < min[i]:
-                    cls.conf["dims"][k] = defaults
-                    break
+                    cls.conf["dims"][k] = min[i]
         except Exception:
             cls.conf["dims"][k] = defaults
         return cls.conf["dims"][k]
@@ -67,14 +66,6 @@ class NavView(IntFlag):
     List = 2
     Icons = 3
     Thumbnails = 4
-    # SmallIcons = 3
-    # MediumIcons = 4
-    # LargeIcons = 5
-    # XLIcons = 6
-    # SmallThumbs = 7
-    # MediumThumbs = 8
-    # LargeThumbs = 9
-    # XLThumbs = 10
 
 
 class NavSize(IntFlag):

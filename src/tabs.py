@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 from PyQt5 import QtWidgets, QtCore, QtGui
+from PIL import Image
 from send2trash import send2trash
 from .breadcrumbs import NavBreadCrumbsBar
 from .helper import logger, humansize
@@ -296,7 +297,7 @@ class NavTab(QtWidgets.QFrame):
     def init_list_view(self):
         """Initialize List View."""
         self.lv = QtWidgets.QListView()
-        self.lv.setWordWrap(True)
+        self.lv.setWordWrap(False)
         self.lv.setTextElideMode(QtCore.Qt.ElideMiddle)
         self.lv.setMovement(QtWidgets.QListView.Snap)
         self.lv.setResizeMode(QtWidgets.QListView.Adjust)
@@ -313,7 +314,6 @@ class NavTab(QtWidgets.QFrame):
         self.lv.SelectionMode(7)
         self.lv.selectionModel().selectionChanged.connect(self.rows_selected)
         self.lv.doubleClicked.connect(self.double_clicked)
-        self.setStyleSheet("QCheckBox::indicator {subcontrol-position: top; subcontrol-origin: padding;}")
 
     def switch_view(self, new_view, size=NavSize.Tiny):
         """Switch between views"""
@@ -345,14 +345,14 @@ class NavTab(QtWidgets.QFrame):
             self.view.setViewMode(QtWidgets.QListView.ListMode)
             self.lv.verticalScrollBar().setSingleStep(height)
             self.lv.setIconSize(QtCore.QSize(width, height))
-            # self.lv.setGridSize(QtCore.QSize(300, 30))
+            self.lv.setGridSize(QtCore.QSize(300, 30))
             # self.lv.setSpacing(5)
             self.lv.setWrapping(True)
         elif new_view in [NavView.Icons, NavView.Thumbnails]:
             self.view.setViewMode(QtWidgets.QListView.IconMode)
             self.lv.setIconSize(QtCore.QSize(width, height))
-            self.lv.setGridSize(QtCore.QSize(width+10, height+30))
-            self.lv.verticalScrollBar().setSingleStep(height+30)
+            self.lv.setGridSize(QtCore.QSize(width+10, height+20))
+            self.lv.verticalScrollBar().setSingleStep(height)
 
     def install_filters(self):
         """Install event filter in all children of the panel."""
@@ -583,12 +583,13 @@ class NavTab(QtWidgets.QFrame):
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         if loc is None:
             loc = self.location
-        if not os.path.isdir(loc):
-            logger.debug(f"{loc} isn't a directory")
-            Pub.notify("App", f"{loc} isn't a directory.")
-            return
+        # if not os.path.isdir(loc):
+        #     logger.debug(f"{loc} isn't a directory")
+        #     Pub.notify("App", f"{loc} isn't a directory.")
+        #     return
+        # logger.debug(loc)
         if (forced and self._loading is False) or loc != self.location \
-                or self.model.last_read < os.stat(loc).st_mtime:
+                or self.is_changed(loc, self.model.last_read):
             if not forced:
                 self.filter_text = ""
             self.hv.updateCheckState(0)  # Uncheck main checkbox
@@ -608,6 +609,12 @@ class NavTab(QtWidgets.QFrame):
                 self.view.clearSelection()
                 self.location = os.path.abspath(loc)
                 self.location_changed.emit(self.location)
+
+    def is_changed(self, loc, last_read):
+        try:
+            return last_read < os.stat(loc).st_mtime
+        except FileNotFoundError:
+            return True
 
     def change_detected(self, evt):
         """Invokes appropriate methods to add/update/remove listed files."""
@@ -725,7 +732,8 @@ class NavTab(QtWidgets.QFrame):
         files = [QtCore.QUrl.fromLocalFile(
             os.path.join(self.location, self.proxy.itemData(index).get(0)))
                  for index in self.view.selectionModel().selectedIndexes()]
-        mime_data = self.proxy.mimeData(self.view.selectionModel().selectedIndexes())
+        mime_data = self.proxy.mimeData(self.view.selectionModel().
+                                        selectedIndexes())
         if cut:
             data = b'1'  # same as QtCore.QByteArray(0, '1')
             mime_data.setData("application/x-kde-cutselection", data)
@@ -778,7 +786,8 @@ class NavTab(QtWidgets.QFrame):
         t = [QtCore.QUrl.fromLocalFile(
                 f"{self.location}{os.sep}{self.proxy.itemData(index).get(0)}")
              for index in self.view.selectionModel().selectedIndexes()]
-        mime_data = self.proxy.mimeData(self.view.selectionModel().selectedIndexes())
+        mime_data = self.proxy.mimeData(self.view.selectionModel().
+                                        selectedIndexes())
         mime_data.setUrls(t)
         logger.debug(f"Dragging: {mime_data.urls()}")
         drag.setMimeData(mime_data)
@@ -860,5 +869,14 @@ class NavTab(QtWidgets.QFrame):
         if cap == "Thumbnails":
             if visible:
                 self.tv.verticalHeader().setDefaultSectionSize(128)
+                self.model.model_size(128, 128)
             else:
                 self.tv.verticalHeader().setDefaultSectionSize(20)
+
+    def image_viewer(self):
+        try:
+            f = self.proxy.itemData(self.view.currentIndex()).get(0)
+            t = Image.open(f"{self.location}{os.sep}{f}")
+            t.show()
+        except Exception:
+            pass

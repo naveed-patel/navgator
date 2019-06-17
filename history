@@ -1,3 +1,10 @@
+v0.4.2 2019-06-17 22:07 BST
++ Status bar shows memory utilisation and total cpu utilisation
++ App-icon added
++ Icons weren't returned from cache. Fixed
++ Added basic image viewer. Displays currently selected image.
+  Doesn't update on selection change
+
 v0.4.1 2019-06-16 12:05 BST
 ++ Other Views. Small, Medium, Large, XL Icons and Thumbnails
 + Views are saved and restored along with size

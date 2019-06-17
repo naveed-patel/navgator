@@ -19,9 +19,9 @@ class NavIcon:
     def get_icon(cls, path, ext=None):
         """Return icon from cache or pull it into the cache and return."""
         if ext is None:
-            if os.path.isfile(path):
-                ext = pathlib.Path(path).suffix
+            ext = pathlib.Path(path).suffix
         if ext not in cls.icon_map:
+            logger.debug(f"Fresh Icon for {path} {ext}")
             file_info = QtCore.QFileInfo(path)
             icon = cls.iconProvider.icon(file_info)
             if ext is None:
@@ -52,7 +52,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
     def list_dir(self, d: str):
         """Updates the model with director listing."""
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
-        if not os.path.exists(d):
+        if not os.path.exists(d) and d != "trash:":
             self.files = []
             Pub.notify(f"App.{self.pid}.Tabs",
                        f"{self.pid}: {d} does not exist")
@@ -219,9 +219,11 @@ class NavItemModel(QtCore.QAbstractItemModel):
                         return QtGui.QImage(ImageQt(im))
                     except Exception:
                         # Icon if thumbnails can't be generated
-                        return NavIcon.get_icon(self.files[row][0])
+                        return NavIcon.get_icon(self.files[row][0],
+                                                ext=self.files[row][1])
                 elif column == 0:
-                    return NavIcon.get_icon(self.files[row][0])
+                    return NavIcon.get_icon(self.files[row][0],
+                                            ext=self.files[row][1])
                 else:
                     return None
             elif role == QtCore.Qt.DisplayRole:
@@ -231,6 +233,8 @@ class NavItemModel(QtCore.QAbstractItemModel):
                     return QtCore.Qt.Checked
                 else:
                     return QtCore.Qt.Unchecked
+            # elif role == QtCore.Qt.SizeHintRole:
+            #     return (QtCore.QSize(self.tw, self.th))
         except IndexError:
             pass
 
