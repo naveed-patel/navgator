@@ -208,6 +208,10 @@ class NavItemModel(QtCore.QAbstractItemModel):
             row = index.row()
             column = index.column()
             value = self.files[row][column]
+            # if column == 0:
+            #     logger.debug(f"{value} {self.files[row][self.state]}")
+            # if self.files[row][self.state] & NavStates.IS_FILTERED:
+            #     return QtCore.QVariant
             if role == QtCore.Qt.EditRole:
                 return value
             elif role == QtCore.Qt.DecorationRole:
@@ -308,3 +312,37 @@ class NavItemModel(QtCore.QAbstractItemModel):
                 self.selsize += to_bytes(item[2])
                 self.selcount += 1
         return self.selcount, self.selsize
+
+    # def set_filter(self, filter_text):
+    #     """Apply the filter provided in filter box."""
+    #     self.parent.filter_text = filter_text
+    #     logger.debug(f"Filter is {filter_text}")
+    #     for item in self.files:
+    #         if filter_text not in item[0]:
+    #             item[self.state] |= NavStates.IS_FILTERED
+    #     self.layoutChanged.emit()
+    #     #self.proxy.setFilterCaseSensitivity(False)
+    #     #self.proxy.setFilterRegExp(filter_text)
+    #     # for i in range(self.proxy.rowCount()):
+    #     #     index = self.proxy.index(i, 0)
+    #     #     if index not in self.view.selectionModel().selectedIndexes():
+    #     #         self.proxy.setData(index, QtCore.Qt.Unchecked,
+    #     #                            QtCore.Qt.CheckStateRole)
+
+    def item_at(self, row, column=0):
+        return self.files[row][column]
+
+    def previous_index(self, index, cyclic=True):
+        if self.rowCount() == 0 or ((not cyclic) and index <= 0):
+            return None
+        if index <= 0:
+            return self.rowCount()-1
+        return index - 1
+
+    def next_index(self, index, cyclic=True):
+        if self.rowCount() == 0 or ((not cyclic) and
+                                    index >= self.rowCount()-1):
+            return None
+        if index >= self.rowCount()-1:
+            return 0
+        return index + 1

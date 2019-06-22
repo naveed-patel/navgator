@@ -1,7 +1,7 @@
 from PyQt5 import QtWidgets, QtCore
 from .core import Nav, NavStates
 from dataclasses import dataclass
-# from .helper import logger
+from .helper import logger
 
 
 @dataclass
@@ -192,3 +192,22 @@ class NavSortFilterProxyModel(QtCore.QSortFilterProxyModel):
                 else False
         except TypeError:
             return True if l_data[left.column()] is None else False
+
+    def item_at(self, row, column=0):
+        return self.files[row][column]
+
+    def previous_index(self, index, cyclic=True):
+        if self.rowCount() == 0 or ((not cyclic) and index <= 0):
+            return None
+        if index <= 0:
+            return self.rowCount()-1
+        return index - 1
+
+    def next_index(self, index, cyclic=True):
+        logger.debug(self.rowCount())
+        if self.rowCount() == 0 or ((not cyclic) and
+                                    index >= self.rowCount()-1):
+            return None
+        if index >= self.rowCount()-1:
+            return 0
+        return index + 1

@@ -17,11 +17,11 @@ URL = 'https://github.com/naveed-patel/navgator'
 EMAIL = '20777764+naveed-patel@users.noreply.github.com'
 AUTHOR = 'Naveed Patel'
 REQUIRES_PYTHON = '>=3.7.0'
-VERSION = '0.4.2'
+VERSION = '0.5.0'
 
 # What packages are required for this module to be executed?
 REQUIRED = [
-    'PyQt5', 'watchdog', 'send2trash', 'pillow', 'psutil'
+    'PyQt5', 'watchdog', 'send2trash', 'pillow', 'psutil', 'file-magic'
 ]
 
 # What packages are optional?

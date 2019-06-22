@@ -1,3 +1,10 @@
+v0.5.0 2019-06-22 20:30 BST
+++ Image Viewer (F11) to display images.
+   GIFs are animated.
+   Left: Go Back
+   Space/Right Arrow: Go Forward
+   Mouse Wheel - Zoom In/Out
+
 v0.4.2 2019-06-17 22:07 BST
 + Status bar shows memory utilisation and total cpu utilisation
 + App-icon added

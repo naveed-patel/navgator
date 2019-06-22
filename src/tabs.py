@@ -659,10 +659,11 @@ class NavTab(QtWidgets.QFrame):
             return
         self.view.edit(index)
 
-    def trash(self):
+    def trash(self, files=None):
         """Delete the current list of selected files to trash."""
-        files = [self.proxy.itemData(index).get(0)
-                 for index in self.view.selectionModel().selectedIndexes()]
+        if files is None:
+            files = [self.proxy.itemData(index).get(0)
+                     for index in self.view.selectionModel().selectedIndexes()]
         for f in files:
             fullname = os.path.join(self.location, f)
             try:

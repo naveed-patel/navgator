@@ -3,3 +3,4 @@ send2trash
 PyQt5
 pillow
 psutil
+file-magic
