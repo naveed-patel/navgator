@@ -1,7 +1,5 @@
 from PyQt5 import QtWidgets, QtCore
-from .core import Nav, NavStates
 from dataclasses import dataclass
-from .helper import logger
 
 
 @dataclass
@@ -153,61 +151,3 @@ class NavHeaderView(QtWidgets.QHeaderView):
                     self.header[idx].visible = not h.visible
                     self.visibility_changed.emit(idx, h.caption, h.visible)
                     return
-
-
-class NavSortFilterProxyModel(QtCore.QSortFilterProxyModel):
-    """Subclassed to provide row numbers and sorting folders to top."""
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-        self.filterString = ''
-        self.filterFunctions = {}
-
-    def headerData(self, section, orientation, role):
-        """Reimplemented to provide row numbers for vertical headers."""
-        # if display role of vertical headers
-        if orientation == QtCore.Qt.Vertical and \
-                role == QtCore.Qt.DisplayRole:
-            return section + 1  # return the actual row number
-        # Rely on the base implementation
-        return super().headerData(section, orientation, role)
-
-    def lessThan(self, left, right):
-        """Reimplemented to sort folders to top."""
-        l_data = self.sourceModel().files[left.row()]
-        r_data = self.sourceModel().files[right.row()]
-        sort_order = self.sortOrder()
-        if Nav.conf["sort_folders_first"]:
-            l_dir = l_data[self.sourceModel().state] & NavStates.IS_DIR
-            r_dir = r_data[self.sourceModel().state] & NavStates.IS_DIR
-            try:
-                if l_dir > r_dir:
-                    return sort_order == QtCore.Qt.AscendingOrder
-                elif l_dir < r_dir:
-                    return sort_order != QtCore.Qt.AscendingOrder
-            except TypeError:
-                return True
-        try:
-            return True if (l_data[left.column()] <= r_data[right.column()]) \
-                else False
-        except TypeError:
-            return True if l_data[left.column()] is None else False
-
-    def item_at(self, row, column=0):
-        return self.files[row][column]
-
-    def previous_index(self, index, cyclic=True):
-        if self.rowCount() == 0 or ((not cyclic) and index <= 0):
-            return None
-        if index <= 0:
-            return self.rowCount()-1
-        return index - 1
-
-    def next_index(self, index, cyclic=True):
-        logger.debug(self.rowCount())
-        if self.rowCount() == 0 or ((not cyclic) and
-                                    index >= self.rowCount()-1):
-            return None
-        if index >= self.rowCount()-1:
-            return 0
-        return index + 1

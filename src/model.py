@@ -5,7 +5,7 @@ import time
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PIL import Image
 from PIL.ImageQt import ImageQt
-from .core import NavStates, NavView
+from .core import NavStates, NavView, Nav
 from .helper import logger, humansize, to_bytes
 from .pub import Pub
 
@@ -252,6 +252,9 @@ class NavItemModel(QtCore.QAbstractItemModel):
                 return ""
         return None
 
+    def parent(self, index):
+        return QtCore.QModelIndex()
+
     def flags(self, index):
         """Re-implemented to allow checkbox on the name column and
         prevent selection on other columns."""
@@ -313,24 +316,44 @@ class NavItemModel(QtCore.QAbstractItemModel):
                 self.selcount += 1
         return self.selcount, self.selsize
 
-    # def set_filter(self, filter_text):
-    #     """Apply the filter provided in filter box."""
-    #     self.parent.filter_text = filter_text
-    #     logger.debug(f"Filter is {filter_text}")
-    #     for item in self.files:
-    #         if filter_text not in item[0]:
-    #             item[self.state] |= NavStates.IS_FILTERED
-    #     self.layoutChanged.emit()
-    #     #self.proxy.setFilterCaseSensitivity(False)
-    #     #self.proxy.setFilterRegExp(filter_text)
-    #     # for i in range(self.proxy.rowCount()):
-    #     #     index = self.proxy.index(i, 0)
-    #     #     if index not in self.view.selectionModel().selectedIndexes():
-    #     #         self.proxy.setData(index, QtCore.Qt.Unchecked,
-    #     #                            QtCore.Qt.CheckStateRole)
 
-    def item_at(self, row, column=0):
-        return self.files[row][column]
+class NavSortFilterProxyModel(QtCore.QSortFilterProxyModel):
+    """Subclassed to provide row numbers and sorting folders to top."""
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.parent = parent
+        self.filterString = ''
+        self.filterFunctions = {}
+
+    def headerData(self, section, orientation, role):
+        """Reimplemented to provide row numbers for vertical headers."""
+        # if display role of vertical headers
+        if orientation == QtCore.Qt.Vertical and \
+                role == QtCore.Qt.DisplayRole:
+            return section + 1  # return the actual row number
+        # Rely on the base implementation
+        return super().headerData(section, orientation, role)
+
+    def lessThan(self, left, right):
+        """Reimplemented to sort folders to top."""
+        l_data = self.sourceModel().files[left.row()]
+        r_data = self.sourceModel().files[right.row()]
+        sort_order = self.sortOrder()
+        if Nav.conf["sort_folders_first"]:
+            l_dir = l_data[self.sourceModel().state] & NavStates.IS_DIR
+            r_dir = r_data[self.sourceModel().state] & NavStates.IS_DIR
+            try:
+                if l_dir > r_dir:
+                    return sort_order == QtCore.Qt.AscendingOrder
+                elif l_dir < r_dir:
+                    return sort_order != QtCore.Qt.AscendingOrder
+            except TypeError:
+                return True
+        try:
+            return True if (l_data[left.column()] <= r_data[right.column()]) \
+                else False
+        except TypeError:
+            return True if l_data[left.column()] is None else False
 
     def previous_index(self, index, cyclic=True):
         if self.rowCount() == 0 or ((not cyclic) and index <= 0):
@@ -340,6 +363,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
         return index - 1
 
     def next_index(self, index, cyclic=True):
+        logger.debug(self.rowCount())
         if self.rowCount() == 0 or ((not cyclic) and
                                     index >= self.rowCount()-1):
             return None

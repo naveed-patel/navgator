@@ -12,8 +12,8 @@ from send2trash import send2trash
 from .breadcrumbs import NavBreadCrumbsBar
 from .helper import logger, humansize
 from .pub import Pub
-from .model import NavItemModel
-from .custom import (NavSortFilterProxyModel, NavHeaderView, NavColumn)
+from .model import NavItemModel, NavSortFilterProxyModel
+from .custom import (NavHeaderView, NavColumn)
 from .core import Nav, NavView, NavSize
 
 
@@ -526,10 +526,8 @@ class NavTab(QtWidgets.QFrame):
         for index in desel.indexes():
             if not self.proxy.itemData(index):
                 continue
-
-            if self.filter_text == "":
-                self.proxy.setData(index, QtCore.Qt.Unchecked,
-                                   QtCore.Qt.CheckStateRole)
+            self.proxy.setData(index, QtCore.Qt.Unchecked,
+                               QtCore.Qt.CheckStateRole)
 
         selstat = len(self.view.selectionModel().selectedIndexes())
         if selstat:
@@ -666,6 +664,8 @@ class NavTab(QtWidgets.QFrame):
                      for index in self.view.selectionModel().selectedIndexes()]
         for f in files:
             fullname = os.path.join(self.location, f)
+            logger.debug(fullname)
+            # continue
             try:
                 send2trash(fullname)
                 self.model.remove_row(f)

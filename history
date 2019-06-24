@@ -1,3 +1,11 @@
+v0.5.1 2019-06-24 19:25 BST
+! Crash when last image previewed image was deleted. Fixed.
+! Image Viewer: Left arrow key would show black screen on filtered images.
+  It should have skipped them. Fixed
+! Checkbox selection corrupted on filtering. Fixed.
+! Fit to view would zoom to fit. Fixed
+* ImageViewer title show total images.
+
 v0.5.0 2019-06-22 20:30 BST
 ++ Image Viewer (F11) to display images.
    GIFs are animated.

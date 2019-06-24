@@ -1,7 +1,8 @@
 import magic
 from PyQt5 import QtCore, QtWidgets, QtGui
+from PIL.ImageQt import ImageQt
 from .core import Nav
-# from .helper import logger  # , humansize, to_bytes
+from .helper import logger  # , humansize, to_bytes
 
 
 class NavViewer(QtWidgets.QMainWindow):
@@ -34,20 +35,20 @@ class NavViewer(QtWidgets.QMainWindow):
         """Reimplemented to handle active pane."""
         if event.type() == QtCore.QEvent.KeyPress:
             key = event.key()
-            if key == QtCore.Qt.Key_Escape:
+            if key == QtCore.Qt.Key_Escape or key == QtCore.Qt.Key_Backspace:
                 self.close()
             elif key == QtCore.Qt.Key_Left:
-                self.load_index(Nav.pact.tabbar.currentWidget().model.
+                self.load_index(Nav.pact.tabbar.currentWidget().proxy.
                                 previous_index(self.ind))
-                self.setWindowTitle(f"{self.ind}: {self.cur_file}")
             elif key == QtCore.Qt.Key_Right or key == QtCore.Qt.Key_Space:
                 self.load_index(Nav.pact.tabbar.currentWidget().proxy.
                                 next_index(self.ind))
-                self.setWindowTitle(f"{self.ind}: {self.cur_file}")
-            elif key == QtCore.Qt.Key_Delete:
+            elif key == QtCore.Qt.Key_Delete and self.cur_file is not None:
                 Nav.pact.tabbar.currentWidget().trash([self.cur_file])
-                self.load_index(self.ind)
-                self.setWindowTitle(f"{self.ind}: {self.cur_file}")
+                self.load_index(self.ind) or \
+                    (self.load_index(Nav.pact.tabbar.currentWidget().proxy.
+                                     previous_index(self.ind))
+                        if self.ind > 0 else self.load_index(self.ind))
             else:
                 super().keyPressEvent(event)
         return False
@@ -55,17 +56,31 @@ class NavViewer(QtWidgets.QMainWindow):
     def loadCurrentImage(self):
         """Gets the index for currently selected item."""
         self.ind = Nav.pact.tabbar.currentWidget().view.currentIndex().row()
+        if self.ind < 0:
+            self.ind = 0
+        logger.debug(self.ind)
         self.load_index(self.ind)
 
     def load_index(self, index):
         """Loads the item at index in the viewer."""
         if index is None:
+            logger.debug("Nothing to show")
+            self.cur_file = None
+            self.imgvwr.setPhoto(QtGui.QPixmap())
             return
         self.ind = index
-        self.cur_file = Nav.pact.tabbar.currentWidget().model.item_at(
-                self.ind)
         self.cur_file = Nav.pact.tabbar.currentWidget().proxy.data(
             Nav.pact.tabbar.currentWidget().proxy.index(index, 0))
+        if self.cur_file is None:
+            if Nav.pact.tabbar.currentWidget().proxy.rowCount() == 0:
+                self.close()
+            else:
+                self.imgvwr.setPhoto(QtGui.QPixmap())
+                self.setWindowTitle(f"Image Viewer")
+            return False
+        d = Nav.pact.tabbar.currentWidget().location
+        total = Nav.pact.tabbar.currentWidget().proxy.rowCount()
+        self.setWindowTitle(f"{self.ind+1}/{total}: {d}/{self.cur_file}")
         info = magic.detect_from_filename(self.cur_file)
         self._zoom = 0
         if info.mime_type == "image/gif":
@@ -127,14 +142,22 @@ class ImageViewer(QtWidgets.QGraphicsView):
             self.scale(1 / unity.width(), 1 / unity.height())
             viewrect = self.viewport().rect()
             scenerect = self.transform().mapRect(rect)
-            factor = min(viewrect.width() / scenerect.width(),
-                         viewrect.height() / scenerect.height())
-            self.scale(factor, factor)
+            if viewrect.width() < scenerect.width() or \
+                    viewrect.height() < scenerect.height():
+                factor = min(viewrect.width() / scenerect.width(),
+                             viewrect.height() / scenerect.height())
+                self.scale(factor, factor)
             self._zoom = 0
 
     def setPhoto(self, pic=None):
         """Displays the images in the viewer."""
-        pixmap = QtGui.QPixmap(pic)
+        # pixmap = QtGui.QPixmap(pic)
+        # if pic is not None:
+        try:
+            qim = ImageQt(pic)
+            pixmap = QtGui.QPixmap.fromImage(qim.copy())
+        except Exception:
+            pixmap = QtGui.QPixmap(pic)
         self._zoom = 0
         if pixmap and not pixmap.isNull():
             self.setDragMode(QtWidgets.QGraphicsView.ScrollHandDrag)
