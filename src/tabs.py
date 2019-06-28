@@ -695,9 +695,9 @@ class NavTab(QtWidgets.QFrame):
         try:
             send2trash(d)
             self.navigate(new_location)
-        except FileNotFoundError:
-            logger.error(f"{d} not found")
-            Pub.notify("App.{self.pid}.Tab", f"{self.pid}: {d} not found.")
+        except OSError as e:
+            logger.error(e)
+            Pub.notify("App.{self.pid}.Tab", f"{self.pid}: {e}")
 
     def remove_readonly(self, func, path, _):
         "Clear the readonly bit and reattempts the removal."

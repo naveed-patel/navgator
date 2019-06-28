@@ -1,3 +1,8 @@
+v0.5.2 2019-06-28 21:16 BST
+!! 3 files were deleted when file deletion was requested after registering a
+   click on the image viewer. Fixed.
+! Crash when deleting non-existing folder. Fixed.
+
 v0.5.1 2019-06-24 19:25 BST
 ! Crash when last image previewed image was deleted. Fixed.
 ! Image Viewer: Left arrow key would show black screen on filtered images.

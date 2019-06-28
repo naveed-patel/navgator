@@ -16,6 +16,7 @@ class NavViewer(QtWidgets.QMainWindow):
         self.main_widget = QtWidgets.QWidget(self)
         self.stack = QtWidgets.QStackedLayout(self.main_widget)
         self.imgvwr = ImageViewer(self)
+        self.imgvwr.setFocusPolicy(QtCore.Qt.NoFocus)
         self.gifvwr = QtWidgets.QLabel()
         self.gifvwr.setAlignment(QtCore.Qt.AlignCenter)
         self.gifvwr.setStyleSheet("background-color: black")
@@ -28,8 +29,6 @@ class NavViewer(QtWidgets.QMainWindow):
         self.setCentralWidget(self.main_widget)
         self.setFocus()
         self.installEventFilter(self)
-        for widget in self.findChildren(QtWidgets.QWidget):
-            widget.installEventFilter(self)
 
     def eventFilter(self, obj, event):
         """Reimplemented to handle active pane."""
