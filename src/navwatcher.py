@@ -16,6 +16,7 @@ class NavWatcher:
     def on_file_system_event(cls, event):
         """Invokes provided callback on FileSystemEvent."""
         loc = str(pathlib.PurePath(event.src_path).parent)
+        logger.debug("Change detected")
         try:
             for callback in cls.monitored[loc]['callbacks']:
                 callback(event, loc)
@@ -70,7 +71,12 @@ class NavWatcher:
             cls.event_handler.on_moved = cls.on_file_system_event
             cls.event_handler.on_created = cls.on_file_system_event
             cls.event_handler.on_modified = cls.on_file_system_event
+            cls.event_handler.on_thread_stop = cls.on_thread_stop
+            cls.observer.daemon = True
             cls.observer.start()
+
+    def on_thread_stop(cls):
+        logger.debug(f"Watchdog stopped.")
 
     @classmethod
     def stop(cls):

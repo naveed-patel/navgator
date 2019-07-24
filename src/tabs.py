@@ -1,6 +1,7 @@
 import collections
 import os
 import pathlib
+import random
 import shutil
 import stat
 import subprocess
@@ -175,16 +176,14 @@ class NavTab(QtWidgets.QFrame):
         self.bcbar = NavBreadCrumbsBar("/")
         self.bcbar.clicked.connect(self.navigate)
         self._offset = QtCore.QPoint(30, 30)
-        self.history = collections.deque(maxlen=64)
-        self.future = collections.deque(maxlen=64)
         try:
-            self.history = tab_info["history"]
+            self.history = collections.deque(tab_info["history"], maxlen=64)
         except (KeyError, TypeError):
-            pass
+            self.history = collections.deque(maxlen=64)
         try:
-            self.future = tab_info["future"]
+            self.future = collections.deque(tab_info["future"], maxlen=64)
         except (KeyError, TypeError):
-            pass
+            self.future = collections.deque(maxlen=64)
         try:
             self.location = tab_info["location"]
         except (KeyError, TypeError):
@@ -563,15 +562,20 @@ class NavTab(QtWidgets.QFrame):
 
     def keyPressEvent(self, event):
         """Reimplemented keyPressEvent for custom handling."""
-        if event.key() == QtCore.Qt.Key_Return:
+        key = event.key()
+        if key == QtCore.Qt.Key_Return:
             index = self.view.currentIndex()
             item = self.proxy.itemData(index).get(0)
             if self.view.state() != QtWidgets.QAbstractItemView.EditingState:
                 loc = os.path.join(self.location, item)
                 self.opener(loc)
-        elif event.key() == QtCore.Qt.Key_Backspace:
+        elif key == QtCore.Qt.Key_Backspace:
             loc = os.path.dirname(self.location)
             self.navigate(loc)
+        elif key == QtCore.Qt.Key_Home:
+            self.view.selectRow(0)
+        elif key == QtCore.Qt.Key_End:
+            self.view.selectRow(self.proxy.rowCount()-1)
         else:
             super().keyPressEvent(event)
             event.ignore()
@@ -688,13 +692,19 @@ class NavTab(QtWidgets.QFrame):
                 logger.error(f"{f} not found")
                 Pub.notify(f"App", f"{self.pid}: {f} not found.")
 
-    def del_dir_up(self):
+    def del_dir_up(self, mode=0):
         """Deletes the current directory and goes up one directory."""
         d = self.location
         new_location = str(pathlib.PurePath(d).parent)
         try:
-            send2trash(d)
+            if mode < 2:
+                send2trash(d)
             self.navigate(new_location)
+            if mode > 0:
+                fcount = self.proxy.rowCount()
+                index = random.randint(0, fcount)
+                fname = self.proxy.data(self.proxy.index(index, 0))
+                self.navigate(f"{new_location}{os.sep}{fname}")
         except OSError as e:
             logger.error(e)
             Pub.notify("App.{self.pid}.Tab", f"{self.pid}: {e}")

@@ -6,7 +6,7 @@ from PyQt5 import QtCore, QtWidgets, QtGui
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from .core import NavStates, NavView, Nav
-from .helper import logger, humansize, to_bytes
+from .helper import logger, humansize
 from .pub import Pub
 
 
@@ -78,12 +78,12 @@ class NavItemModel(QtCore.QAbstractItemModel):
                     state = 0
                     ext = pathlib.Path(entry.name).suffix.lstrip('.')
                     self.fcount += 1
-                    size = humansize(entry.stat().st_size)
+                    size = entry.stat().st_size
                 else:
                     state = NavStates.IS_DIR
                     ext = None
                     self.dcount += 1
-                    size = None
+                    size = 0
                 modified = str(time.strftime('%Y-%m-%d %H:%M',
                                time.localtime(entry.stat().st_mtime)))
                 self.total += entry.stat().st_size
@@ -102,13 +102,13 @@ class NavItemModel(QtCore.QAbstractItemModel):
                     ext = pathlib.Path(new_item).suffix.lstrip('.')
                     self.fcount += 1
                     stats = os.lstat(new_item)
-                    size = humansize(stats.st_size)
-                    self.total += stats.st_size
+                    size = stats.st_size
+                    self.total += size
                 else:
                     state = NavStates.IS_DIR
                     ext = None
                     self.dcount += 1
-                    size = ''
+                    size = 0
                     stats = os.lstat(new_item)
                 modified = str(time.strftime('%Y-%m-%d %H:%M',
                                time.localtime(stats.st_mtime)))
@@ -128,16 +128,14 @@ class NavItemModel(QtCore.QAbstractItemModel):
                 ind = self.files.index(item)
                 if item[self.state] & ~NavStates.IS_DIR:
                     try:
-                        size = to_bytes(item[2])
-                        self.total -= size
+                        self.total -= item[2]
                     except Exception:
                         logger.debug(f"Error getting size for {upd_item}",
                                      exc_info=True)
                 stats = os.lstat(upd_item)
-                size = humansize(stats.st_size)
-                self.total += stats.st_size
                 self.layoutAboutToBeChanged.emit()
-                self.files[ind][2] = size
+                self.files[ind][2] = stats.st_size
+                self.total += self.files[ind][2]
                 self.files[ind][3] = str(time.strftime('%Y-%m-%d %H:%M',
                                          time.localtime(stats.st_mtime)))
                 self.layoutChanged.emit()
@@ -168,18 +166,17 @@ class NavItemModel(QtCore.QAbstractItemModel):
                     self.dcount -= 1
                 else:
                     try:
-                        size = to_bytes(item[2])
-                        self.total -= size
+                        self.total -= item[2]
                     except Exception:
                         logger.debug(f"Error getting size for {rem_item}",
                                      exc_info=True)
                     self.fcount -= 1
                 if item[self.state] & NavStates.IS_SELECTED:
                     self.selcount -= 1
-                    try:
-                        self.selsize -= size
-                    except UnboundLocalError:
-                        pass
+                    # try:
+                    self.selsize -= item[2]
+                    # except UnboundLocalError:
+                    #     pass
                 index = self.files.index(item)
                 self.beginRemoveRows(QtCore.QModelIndex(), index, index)
                 self.files.pop(index)
@@ -231,6 +228,8 @@ class NavItemModel(QtCore.QAbstractItemModel):
                 else:
                     return None
             elif role == QtCore.Qt.DisplayRole:
+                if column == 2:
+                    return humansize(value)
                 return value if column != 4 else ""
             elif role == QtCore.Qt.CheckStateRole and column == 0:
                 if self.files[row][self.state] & NavStates.IS_SELECTED:
@@ -274,10 +273,10 @@ class NavItemModel(QtCore.QAbstractItemModel):
         if role == QtCore.Qt.CheckStateRole:
             if value == QtCore.Qt.Checked:
                 self.files[index.row()][self.state] |= NavStates.IS_SELECTED
-                self.selsize += to_bytes(self.files[index.row()][2])
+                self.selsize += self.files[index.row()][2]
             else:
                 self.files[index.row()][self.state] &= ~NavStates.IS_SELECTED
-                self.selsize -= to_bytes(self.files[index.row()][2])
+                self.selsize -= self.files[index.row()][2]
             # Emit signal to select row only if not invoked by it
             if sys._getframe().f_back.f_code.co_name == "__init__":
                 self.dataChanged.emit(index, index)
@@ -312,7 +311,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
         self.selsize = self.selcount = 0
         for item in self.files:
             if item[self.state] & NavStates.IS_SELECTED & ~NavStates.IS_DIR:
-                self.selsize += to_bytes(item[2])
+                self.selsize += item[2]
                 self.selcount += 1
         return self.selcount, self.selsize
 

@@ -8,7 +8,7 @@ import sys
 import subprocess
 from PyQt5 import QtGui, QtCore, QtWidgets
 from .core import Nav, NavView, NavSize
-from .custom import NavTree
+from .custom import NavTree, NavToolButton
 from .helper import logger, deep_merge, humansize
 from .navwatcher import NavWatcher
 from .panes import NavPane
@@ -202,7 +202,19 @@ class Navgator(QtWidgets.QMainWindow):
                 "caption": "Delete Dir Up",
                 "shortcut": "Ctrl+del",
                 "triggered": (lambda: Nav.pact.tabbar.currentWidget().
-                              del_dir_up()),
+                              del_dir_up(0)),
+            },
+            "del_dir_random": {
+                "caption": "Delete Dir Random",
+                "shortcut": "Alt+del",
+                "triggered": (lambda: Nav.pact.tabbar.currentWidget().
+                              del_dir_up(1)),
+            },
+            "parent_random": {
+                "caption": "Delete Dir Random",
+                "shortcut": "Ctrl+Backspace",
+                "triggered": (lambda: Nav.pact.tabbar.currentWidget().
+                              del_dir_up(2)),
             },
             "new_file": {
                 "caption": "&New File",
@@ -386,11 +398,57 @@ class Navgator(QtWidgets.QMainWindow):
     def create_toolbar(self):
         """Creates a toolbar."""
         self.toolbar = self.addToolBar("Main")
-        self.toolbar.addAction(Nav.actions["back"])
-        self.toolbar.addAction(Nav.actions["forward"])
+        self.toolbar.setMovable(False)
+
+        # Create back button and add it
+        back_menu = QtWidgets.QMenu()
+        back_menu.setStyleSheet("QMenu{menu-scrollable: 1; }")
+        back_menu.aboutToShow.connect(lambda: self.back_drop_menu(back_menu))
+        back_menu.triggered.connect(self.navigate_to)
+        back = NavToolButton()
+        back.setIcon(self.style().standardIcon(
+                     QtWidgets.QStyle.SP_ArrowBack))
+        back.setDefaultAction(Nav.actions["back"])
+        back.setMenu(back_menu)
+        back.setAutoRaise(True)
+        back.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        self.toolbar.addWidget(back)
+
+        # Create forward button and add it
+        forward_menu = QtWidgets.QMenu()
+        forward_menu.setStyleSheet("QMenu{menu-scrollable: 1; }")
+        forward_menu.aboutToShow.connect(lambda: self.forward_drop_menu(
+            forward_menu))
+        forward_menu.triggered.connect(self.navigate_to)
+        forward = NavToolButton()
+        forward.setIcon(self.style().standardIcon(
+                     QtWidgets.QStyle.SP_ArrowForward))
+        forward.setDefaultAction(Nav.actions["forward"])
+        forward.setMenu(forward_menu)
+        forward.setAutoRaise(True)
+        forward.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
+        self.toolbar.addWidget(forward)
+        # self.toolbar.addAction(Nav.actions["back"])
+        # self.toolbar.addAction(Nav.actions["forward"])
         self.toolbar.addAction(Nav.actions["up"])
         for widget in self.toolbar.findChildren(QtWidgets.QWidget):
             widget.installEventFilter(self)
+
+    def back_drop_menu(self, sender):
+        """Presents a menu on drop down button press."""
+        sender.clear()
+        for item in reversed(Nav.pact.tabbar.currentWidget().history):
+            sender.addAction(item)
+
+    def forward_drop_menu(self, sender):
+        """Presents a menu on drop down button press."""
+        sender.clear()
+        for item in reversed(Nav.pact.tabbar.currentWidget().future):
+            sender.addAction(item)
+
+    def navigate_to(self, sender):
+        """Navigates to the location clicked on back or forward drop menu"""
+        Nav.pact.tabbar.currentWidget().navigate(sender.text())
 
     def create_menu(self):
         """Creates menu recursively."""
@@ -561,16 +619,17 @@ class Navgator(QtWidgets.QMainWindow):
 
     def eventFilter(self, obj, event):
         if event.type() == QtCore.QEvent.ToolTip:
-            if obj.text() == "Go Back":
-                obj.setToolTip(Nav.pact.tabbar.currentWidget().history[-1])
-            elif obj.text() == "Go Forward":
-                try:
+            try:
+                if obj.text() == "Go Back":
+                    obj.setToolTip(Nav.pact.tabbar.currentWidget().history[-1])
+                elif obj.text() == "Go Forward":
                     obj.setToolTip(Nav.pact.tabbar.currentWidget().tab.
                                    future[0])
-                except IndexError:
-                    obj.setToolTip("No more forward")
-
-            logger.debug(f"caught on {obj} {obj.text()}")
+            except IndexError:
+                obj.setToolTip("No more")
+            except AttributeError as e:
+                logger.debug(e)
+            logger.debug(f"Caught on {obj} {obj.text()}")
             # return True
         return QtCore.QObject.eventFilter(self, obj, event)
 
@@ -623,6 +682,7 @@ class Navgator(QtWidgets.QMainWindow):
             Nav.conf["panes"]["active"] = Nav.pact.pid
         with open(Nav.conf_file, "w") as json_file:
             json.dump(Nav.conf, json_file, indent=4)
+        logger.debug(f"Settings saved to {Nav.conf_file}")
 
     def load_settings(self, conf: str=Nav.conf_file):
         """Load a config file and merge it with defaults"""

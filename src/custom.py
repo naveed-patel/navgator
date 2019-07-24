@@ -1,5 +1,6 @@
 from PyQt5 import QtWidgets, QtCore
 from dataclasses import dataclass
+from .helper import logger
 
 
 @dataclass
@@ -14,6 +15,8 @@ class NavTree(QtWidgets.QTreeView):
     """Subclassed for easy instantiating trees across application."""
     def __init__(self):
         super().__init__()
+        self.setSizePolicy(QtWidgets.QSizePolicy.Preferred,
+                           QtWidgets.QSizePolicy.Expanding)
         self.model = QtWidgets.QFileSystemModel(self)
         self.model.setRootPath("/")
         self.model.setResolveSymlinks(False)
@@ -151,3 +154,9 @@ class NavHeaderView(QtWidgets.QHeaderView):
                     self.header[idx].visible = not h.visible
                     self.visibility_changed.emit(idx, h.caption, h.visible)
                     return
+
+
+class NavToolButton(QtWidgets.QToolButton):
+    def contextMenuEvent(self, event):
+        """Re-implemented to handle the context menu on drop down."""
+        logger.debug("Captured")

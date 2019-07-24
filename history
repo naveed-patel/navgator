@@ -1,3 +1,13 @@
+v0.5.3 2019-07-24 21:45 BST
+! Filesystem changes monitoring would stop if watched folder was deleted 
+  during polling. Fixed.
+! Total size would show non-zero value even if there weren't any files.
+  This was due to friendly sizes. Changed the way to display it. 
++ Back and Forward buttons now have a drop down menu
+* Added shortcuts (Ctrl+Backspace) - Go to random folder in parent folder
+  and (Alt+Del) - Delete current folder and go to random folder in parent folder.
+  These would be removed sometime in future
+
 v0.5.2 2019-06-28 21:16 BST
 !! 3 files were deleted when file deletion was requested after registering a
    click on the image viewer. Fixed.

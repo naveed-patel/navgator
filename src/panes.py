@@ -86,7 +86,11 @@ class NavPane(QtWidgets.QFrame):
     def change_detected(self, evt, loc: str):
         """Informs current tab if its current directory was changed."""
         if loc == self.location:
-            self.tabbar.currentWidget().change_detected(evt)
+            try:
+                self.tabbar.currentWidget().change_detected(evt)
+            except OSError as e:
+                logger.error(e)
+                return
             self.sb.showMessage(self.tabbar.currentWidget().status_info)
 
     def eventFilter(self, obj, event):
