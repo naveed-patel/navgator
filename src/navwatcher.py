@@ -1,7 +1,9 @@
 import os
 import pathlib
+# import psutil
 from .helper import logger
 from watchdog.observers import Observer
+# from watchdog.observers.polling import PollingObserver
 from watchdog.events import FileSystemEventHandler
 
 
@@ -11,6 +13,7 @@ class NavWatcher:
     monitored = {}
     event_handler = FileSystemEventHandler()
     observer = Observer()
+    # poller = PollingObserver()
 
     @classmethod
     def on_file_system_event(cls, event):
@@ -41,6 +44,22 @@ class NavWatcher:
                 "callbacks": [callback],
                 "watch": cls.observer.schedule(cls.event_handler, loc),
             }
+            # partitions = psutil.disk_partitions()
+            # mp = None
+            # for p in partitions:
+            #     if loc.startswith(p):
+            #         if mp is None or mp in p.mountpoint:
+            #             mp = p.mountpoint
+            #             logger.debug(f"{loc} mounted on {mp}")
+            # try:
+            #     if callback not in cls.monitored[mp]['callbacks']:
+            #         cls.monitored[mp]['callbacks'].append(callback)
+            # except KeyError:
+            #     cls.monitored[mp] = {
+            #         "stamp": os.stat(loc).st_mtime,
+            #         "callbacks": [callback],
+            #         "watch": cls.poller.schedule(cls.event_handler, mp),
+            #     }
             logger.debug(f"Monitoring started for {loc}")
         logger.debug(f"Current watchers: {cls.observer._watches}")
 
@@ -74,6 +93,7 @@ class NavWatcher:
             cls.event_handler.on_thread_stop = cls.on_thread_stop
             cls.observer.daemon = True
             cls.observer.start()
+            # cls.poller.start()
 
     def on_thread_stop(cls):
         logger.debug(f"Watchdog stopped.")

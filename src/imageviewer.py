@@ -36,6 +36,7 @@ class NavViewer(QtWidgets.QMainWindow):
             key = event.key()
             if key == QtCore.Qt.Key_Escape or key == QtCore.Qt.Key_Backspace:
                 self.close()
+                # self.destroy()
             elif key == QtCore.Qt.Key_Left:
                 self.load_index(Nav.pact.tabbar.currentWidget().proxy.
                                 previous_index(self.ind))

@@ -1,5 +1,6 @@
 import os
 import pathlib
+import sys
 from PyQt5 import QtWidgets, QtCore
 from .core import Nav
 from .custom import NavTree
@@ -185,6 +186,7 @@ class NavPane(QtWidgets.QFrame):
 
     def update_gui(self, loc):
         """Updates GUI to sync with navigations."""
+        logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         if loc != self.location:
             try:
                 NavWatcher.remove_path(self.location, self.change_detected)
@@ -199,6 +201,7 @@ class NavPane(QtWidgets.QFrame):
             self.abar.setText(loc)
         # load tab if not already loaded
         self.tabbar.currentWidget().load_tab()
+        # self.tabbar.currentWidget().navigate(loc)
         self.tabbar.currentWidget().bcbar.create_crumbs(loc)
         self.check_navigation_options()
         self.filter_edit.setText(self.tabbar.currentWidget().filter_text)

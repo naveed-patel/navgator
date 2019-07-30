@@ -2,7 +2,7 @@ import os
 import pathlib
 from PyQt5 import QtGui, QtCore, QtWidgets
 from .core import Nav
-from .helper import logger
+# from .helper import logger
 
 
 class NavBreadCrumbMenu(QtWidgets.QLabel):
@@ -121,7 +121,7 @@ class NavBreadCrumbsBar(QtWidgets.QFrame):
             for i in reversed(range(self.layout().count())):
                 try:
                     wid = self.layout().itemAt(i).widget()
-                    logger.debug(wid)
+                    # logger.debug(wid)
                     if common == wid.cwd.absolutePath():
                         break
                     wid.close()

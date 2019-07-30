@@ -1,6 +1,5 @@
 from PyQt5 import QtWidgets, QtCore
 from dataclasses import dataclass
-from .helper import logger
 
 
 @dataclass
@@ -72,6 +71,7 @@ class NavHeaderView(QtWidgets.QHeaderView):
     """Sub-classed to add a checkbox on header."""
     clicked = QtCore.pyqtSignal(int, bool)
     visibility_changed = QtCore.pyqtSignal(int, str, bool)
+    # randomize = QtCore.pyqtSignal()
 
     def __init__(self, header, orientation=QtCore.Qt.Horizontal, parent=None):
         super().__init__(orientation, parent)
@@ -146,6 +146,9 @@ class NavHeaderView(QtWidgets.QHeaderView):
             v = {"checkable": True, "checked": h.visible}
             act = QtWidgets.QAction(h.caption, self, **v)
             cMenu.addAction(act)
+        # v = {"checkable": True, "checked": False}
+        # act = QtWidgets.QAction("Sort Randomly", self, **v)
+        # cMenu.addAction(act)
         choice = cMenu.exec_(event.globalPos())
         if choice and choice.text() != self.header[0].caption:
             for idx, h in enumerate(self.header):
@@ -154,9 +157,5 @@ class NavHeaderView(QtWidgets.QHeaderView):
                     self.header[idx].visible = not h.visible
                     self.visibility_changed.emit(idx, h.caption, h.visible)
                     return
-
-
-class NavToolButton(QtWidgets.QToolButton):
-    def contextMenuEvent(self, event):
-        """Re-implemented to handle the context menu on drop down."""
-        logger.debug("Captured")
+        # if choice.text() == "Sort Randomly":
+        #     self.randomize.emit()

@@ -244,6 +244,7 @@ class NavTab(QtWidgets.QFrame):
         # Connect to save column movements
         self.hv.sectionMoved.connect(self.columns_moved)
         self.hv.visibility_changed.connect(self.columns_visibility_changed)
+        # self.hv.randomize.connect(self.sort_random)
         self.lyt = QtWidgets.QVBoxLayout()
         self.lyt.setSpacing(0)
         self.lyt.setContentsMargins(0, 0, 0, 0)
@@ -261,6 +262,12 @@ class NavTab(QtWidgets.QFrame):
         except KeyError:
             self.vsize = NavSize.Tiny
         self.switch_view(self.vtype, self.vsize)
+
+    def sort_random(self):
+        self.model.layoutAboutToBeChanged.emit()
+        random.shuffle(self.model.files)
+        self.model.layoutChanged.emit()
+        self.sort_order = -1
 
     def init_header(self):
         """Initializes a header with checkbox selection."""
@@ -465,10 +472,14 @@ class NavTab(QtWidgets.QFrame):
         """Navigates to the provided location."""
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         logger.debug(f"Navigating to {d}")
-        if d != self.location:
-            if Nav.conf["history_without_dupes"] and \
-                    self.location in self.history:
-                self.history.remove(self.location)
+        if d != self.location and os.path.exists(d):
+            if Nav.conf["history_without_dupes"]:
+                    # if self.location in self.history:
+                    #     logger.debug(f"Remove {self.location} from history")
+                    #     self.history.remove(self.location)
+                    if d in self.history:
+                        logger.debug(f"Removing {d} from history")
+                        self.history.remove(d)
             self.history.append(self.location)
             self.load_tab(d)
             self.future.clear()
@@ -485,7 +496,7 @@ class NavTab(QtWidgets.QFrame):
         """Go back in history."""
         try:
             d = self.history.pop()
-            if d != self.location:
+            if d != self.location and os.path.exists(d):
                 if self.location in self.future:
                     self.future.remove(self.location)
                 self.future.append(self.location)
@@ -503,7 +514,7 @@ class NavTab(QtWidgets.QFrame):
                     self.history.remove(self.location)
                 self.history.append(self.location)
                 self.load_tab(d)
-                logger.debug(f"History: {self.history}")
+                # logger.debug(f"History: {self.history}")
         except IndexError:
             logger.error(f"No more forward")
 
@@ -590,6 +601,8 @@ class NavTab(QtWidgets.QFrame):
         #     Pub.notify("App", f"{loc} isn't a directory.")
         #     return
         # logger.debug(loc)
+        # if not os.path.exists(loc):
+        #     return
         if (forced and self._loading is False) or loc != self.location \
                 or self.is_changed(loc, self.model.last_read):
             if not forced:
@@ -605,7 +618,10 @@ class NavTab(QtWidgets.QFrame):
                 f"{self.model.dcount} Total: {humansize(self.model.total)} " \
                 f"Free: {free_disk}"
             if self.vtype == NavView.Details:
-                self.tv.sortByColumn(self.sort_column, self.sort_order)
+                if self.sort_order == -1:
+                    self.sort_random()
+                else:
+                    self.tv.sortByColumn(self.sort_column, self.sort_order)
             self._loading = False
             if self.location != os.path.abspath(loc):
                 self.view.clearSelection()

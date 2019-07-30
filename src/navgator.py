@@ -1,5 +1,6 @@
 #!/bin/python3
 
+import faulthandler
 import json
 import os
 import pathlib
@@ -8,7 +9,7 @@ import sys
 import subprocess
 from PyQt5 import QtGui, QtCore, QtWidgets
 from .core import Nav, NavView, NavSize
-from .custom import NavTree, NavToolButton
+from .custom import NavTree
 from .helper import logger, deep_merge, humansize
 from .navwatcher import NavWatcher
 from .panes import NavPane
@@ -130,7 +131,8 @@ class Navgator(QtWidgets.QMainWindow):
 
     def update_resources(self):
         """Updates a label with memory usage"""
-        mem = humansize(self.res_info.memory_full_info()[0])
+        # logger.debug(self.res_info.memory_full_info())
+        mem = humansize(self.res_info.memory_full_info().uss)
         cpu = self.res_info.cpu_percent()
         self.res_label.setText(f"{mem} ({cpu}%)")
 
@@ -371,6 +373,12 @@ class Navgator(QtWidgets.QMainWindow):
                 "caption": "Image Viewer",
                 "triggered": (lambda: self.image_viewer()),
                 "shortcut": "F11",
+            },
+            "sort-random": {
+                "caption": "Sort Randomly",
+                "shortcut": "Ctrl+Shift+R",
+                "triggered": (lambda: Nav.pact.tabbar.currentWidget().
+                              sort_random())
             }
         }
 
@@ -405,7 +413,7 @@ class Navgator(QtWidgets.QMainWindow):
         back_menu.setStyleSheet("QMenu{menu-scrollable: 1; }")
         back_menu.aboutToShow.connect(lambda: self.back_drop_menu(back_menu))
         back_menu.triggered.connect(self.navigate_to)
-        back = NavToolButton()
+        back = QtWidgets.QToolButton()
         back.setIcon(self.style().standardIcon(
                      QtWidgets.QStyle.SP_ArrowBack))
         back.setDefaultAction(Nav.actions["back"])
@@ -420,7 +428,7 @@ class Navgator(QtWidgets.QMainWindow):
         forward_menu.aboutToShow.connect(lambda: self.forward_drop_menu(
             forward_menu))
         forward_menu.triggered.connect(self.navigate_to)
-        forward = NavToolButton()
+        forward = QtWidgets.QToolButton()
         forward.setIcon(self.style().standardIcon(
                      QtWidgets.QStyle.SP_ArrowForward))
         forward.setDefaultAction(Nav.actions["forward"])
@@ -428,8 +436,7 @@ class Navgator(QtWidgets.QMainWindow):
         forward.setAutoRaise(True)
         forward.setPopupMode(QtWidgets.QToolButton.MenuButtonPopup)
         self.toolbar.addWidget(forward)
-        # self.toolbar.addAction(Nav.actions["back"])
-        # self.toolbar.addAction(Nav.actions["forward"])
+
         self.toolbar.addAction(Nav.actions["up"])
         for widget in self.toolbar.findChildren(QtWidgets.QWidget):
             widget.installEventFilter(self)
@@ -623,13 +630,12 @@ class Navgator(QtWidgets.QMainWindow):
                 if obj.text() == "Go Back":
                     obj.setToolTip(Nav.pact.tabbar.currentWidget().history[-1])
                 elif obj.text() == "Go Forward":
-                    obj.setToolTip(Nav.pact.tabbar.currentWidget().tab.
-                                   future[0])
+                    obj.setToolTip(Nav.pact.tabbar.currentWidget().future[0])
             except IndexError:
                 obj.setToolTip("No more")
             except AttributeError as e:
                 logger.debug(e)
-            logger.debug(f"Caught on {obj} {obj.text()}")
+            # logger.debug(f"Caught on {obj} {obj.text()}")
             # return True
         return QtCore.QObject.eventFilter(self, obj, event)
 
@@ -758,5 +764,12 @@ def main(args=None):
     NavApp(args)
 
 
+def trace(frame, event, arg):
+    print(f"{event}, {frame.f_code.co_filename}:{frame.f_lineno}")
+    return trace
+
+
 if __name__ == '__main__':
+    faulthandler.enable()
+    # sys.settrace(trace)
     main()

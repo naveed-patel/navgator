@@ -1,3 +1,9 @@
+v0.5.4 2019-07-30 21:49 BST
+! Navigation to non-existent directories was possible. It would show
+  blank list of rows. Fixed
+! Tooltip wasn't displayed on Forward button. Fixed.
++ Sort Randomly (Ctrl+Shift+R)
+
 v0.5.3 2019-07-24 21:45 BST
 ! Filesystem changes monitoring would stop if watched folder was deleted 
   during polling. Fixed.
