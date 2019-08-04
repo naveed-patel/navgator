@@ -2,12 +2,14 @@ import os
 import pathlib
 import sys
 import time
+import datetime
 from PyQt5 import QtCore, QtWidgets, QtGui
 from PIL import Image
 from PIL.ImageQt import ImageQt
 from .core import NavStates, NavView, Nav
 from .helper import logger, humansize
 from .pub import Pub
+from .navtrash import NavTrash
 
 
 class NavIcon:
@@ -21,7 +23,7 @@ class NavIcon:
         if ext is None:
             ext = pathlib.Path(path).suffix
         if ext not in cls.icon_map:
-            logger.debug(f"Fresh Icon for {path} {ext}")
+            # logger.debug(f"Fresh Icon for {path} {ext}")
             file_info = QtCore.QFileInfo(path)
             icon = cls.iconProvider.icon(file_info)
             if ext is None:
@@ -49,11 +51,23 @@ class NavItemModel(QtCore.QAbstractItemModel):
         self.tw = width
         self.th = height
 
-    def list_dir(self, d: str):
-        """Updates the model with director listing."""
+    def list_trash(self):
+        self.files = []
+        for tf in NavTrash.get_trash_folders():
+            self.list_dir(tf, 1)
+
+    def list_dirs(self, ds):
+        """Invokes list_dir for each dir in  the list"""
+        for d in ds:
+            self.list_dir(d)
+
+    def list_dir(self, d: str, kind=0):
+        """Updates the model with directory listing."""
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
-        if not os.path.exists(d) and d != "trash:":
+        if not os.path.exists(d):
             self.files = []
+            self.layoutAboutToBeChanged.emit()
+            self.layoutChanged.emit()
             Pub.notify(f"App.{self.pid}.Tabs",
                        f"{self.pid}: {d} does not exist")
             return
@@ -65,14 +79,18 @@ class NavItemModel(QtCore.QAbstractItemModel):
         except NotADirectoryError:
             logger.error(f"{d} is not a directory")
             return False
-
-        self.files = []
         self.fcount = self.dcount = self.total = self.selsize = 0
-        cur_sel = []
-        logger.debug(f"Listing {d} - {len(cur_sel)} selected")
         self.layoutAboutToBeChanged.emit()
+        if kind:
+            mp = pathlib.Path(f"{d}{os.sep}").parent
+            ti = pathlib.Path(f"{d}{os.sep}info{os.sep}")
+            d = pathlib.Path(f"{d}{os.sep}files")
+        else:
+            self.files = []
+
         with os.scandir(d) as it:
-            self.last_read = os.stat(d).st_mtime
+            # self.last_read = os.stat(d).st_mtime
+            self.last_read = datetime.datetime.now().timestamp()
             for entry in it:
                 if entry.is_file():
                     state = 0
@@ -84,13 +102,29 @@ class NavItemModel(QtCore.QAbstractItemModel):
                     ext = None
                     self.dcount += 1
                     size = 0
+
                 modified = str(time.strftime('%Y-%m-%d %H:%M',
                                time.localtime(entry.stat().st_mtime)))
                 self.total += entry.stat().st_size
-                if entry.name in cur_sel:
-                    state |= NavStates.IS_SELECTED
-                self.files.append([entry.name,
-                                   ext, size, modified, state, ])
+
+                if kind:
+                    info = f"{ti}{os.sep}{entry.name}.trashinfo"
+                    current = f"{d}{os.sep}{entry.name}"
+                    with open(info, "r") as fh:
+                        contents = fh.readlines()
+                        for line in contents:
+                            line = line.strip()
+                            if line.startswith('DeletionDate='):
+                                deleted = datetime.datetime.strptime(
+                                        line, "DeletionDate=%Y-%m-%dT%H:%M:%S")
+                            elif line.startswith('Path='):
+                                origin = line[len('Path='):]
+                                if not origin.startswith("/"):
+                                    origin = f"{mp}{os.sep}{origin}"
+                    self.files.append([entry.name, ext, size, modified,
+                                       deleted, origin, current, state])
+                else:
+                    self.files.append([entry.name, ext, size, modified, state])
         self.layoutChanged.emit()
 
     def insert_row(self, new_item: str):
@@ -132,15 +166,23 @@ class NavItemModel(QtCore.QAbstractItemModel):
                     except Exception:
                         logger.debug(f"Error getting size for {upd_item}",
                                      exc_info=True)
-                stats = os.lstat(upd_item)
+                try:
+                    stats = os.lstat(upd_item)
+                except FileNotFoundError as e:
+                    # Deletion invoked modify. 
+                    # Ignore as deletion event will handle it
+                    return
                 self.layoutAboutToBeChanged.emit()
                 self.files[ind][2] = stats.st_size
                 self.total += self.files[ind][2]
                 self.files[ind][3] = str(time.strftime('%Y-%m-%d %H:%M',
                                          time.localtime(stats.st_mtime)))
                 self.layoutChanged.emit()
-                self.last_read = os.stat(self.parent.location).st_mtime
-
+                # try:
+                #     self.last_read = os.stat(self.parent.location).st_mtime
+                # except Exception:
+                #     self.last_read = datetime.datetime.now().timestamp()
+                self.last_read = datetime.datetime.now().timestamp()
                 Pub.notify("App", f"{self.pid}: {upd_item} was modified.")
                 return
 
@@ -153,7 +195,8 @@ class NavItemModel(QtCore.QAbstractItemModel):
                 self.dataChanged.emit(self.createIndex(0, 0),
                                       self.createIndex(self.rowCount(0),
                                       self.columnCount(0)))
-                self.last_read = os.stat(self.parent.location).st_mtime
+                # self.last_read = os.stat(self.parent.location).st_mtime
+                self.last_read = datetime.datetime.now().timestamp()
                 Pub.notify("App", f"{self.pid}: {old_name} was renamed to "
                            f"{new_name}.")
                 return
@@ -200,6 +243,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
     def data(self, index, role=QtCore.Qt.DisplayRole):
         """Returns data to be displayed in the model."""
         if not index.isValid():
+            logger.debug("returning")
             return None
         try:
             row = index.row()
@@ -214,8 +258,11 @@ class NavItemModel(QtCore.QAbstractItemModel):
             elif role == QtCore.Qt.DecorationRole:
                 if column == 4 or (self.parent.vtype == NavView.Thumbnails):
                     try:
-                        im = Image.open(f"{self.parent.location}{os.sep}"
-                                        f"{self.files[row][0]}")
+                        if self.parent.location != "trash":
+                            im = Image.open(f"{self.parent.location}{os.sep}"
+                                            f"{self.files[row][0]}")
+                        else:
+                            im = Image.open(self.files[row][6])
                         im.thumbnail((self.tw, self.th), Image.ANTIALIAS)
                         return QtGui.QImage(ImageQt(im))
                     except Exception:
@@ -230,6 +277,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
             elif role == QtCore.Qt.DisplayRole:
                 if column == 2:
                     return humansize(value)
+                # logger.debug(f"returning {value} for {row} {column}")
                 return value if column != 4 else ""
             elif role == QtCore.Qt.CheckStateRole and column == 0:
                 if self.files[row][self.state] & NavStates.IS_SELECTED:

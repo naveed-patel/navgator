@@ -1,6 +1,6 @@
 #!/bin/python3
 
-import faulthandler
+# import faulthandler
 import json
 import os
 import pathlib
@@ -16,6 +16,7 @@ from .panes import NavPane
 from .pub import Pub
 from .settings import NavSettings
 from .imageviewer import NavViewer
+from .navtrash import NavTrash
 
 
 class NavApp(QtWidgets.QApplication):
@@ -32,6 +33,7 @@ class Navgator(QtWidgets.QMainWindow):
     def __init__(self, *args):
         super().__init__()
         self.title = 'Navgator'
+        NavTrash.get_trash_folders()
         self.load_settings()
         Nav.icon = QtGui.QIcon(f"{Nav.app_dir}{os.sep}navgator.ico")
         self.setWindowIcon(Nav.icon)
@@ -379,7 +381,13 @@ class Navgator(QtWidgets.QMainWindow):
                 "shortcut": "Ctrl+Shift+R",
                 "triggered": (lambda: Nav.pact.tabbar.currentWidget().
                               sort_random())
-            }
+            },
+            "refresh": {
+                "caption": "Refresh",
+                "shortcut": "F5",
+                "triggered": (lambda: Nav.pact.tabbar.currentWidget().
+                              load_tab(forced=True))
+            },
         }
 
         pane_count = Nav.conf["panes"]["total"]
@@ -572,7 +580,7 @@ class Navgator(QtWidgets.QMainWindow):
                 if p != self.panes[ind-1] and p.isVisible():
                     # if hiding active pane, activate another pane
                     if self.panes[ind-1] is Nav.pact:
-                        Nav.active_pane_changed(p)
+                        self.active_pane_changed(p)
                     self.panes[ind-1].hide()
                     self.panes[ind-1].set_visibility(False)
                     Nav.conf["panes"][item]["visible"] = False
@@ -770,6 +778,6 @@ def trace(frame, event, arg):
 
 
 if __name__ == '__main__':
-    faulthandler.enable()
+    # faulthandler.enable()
     # sys.settrace(trace)
     main()

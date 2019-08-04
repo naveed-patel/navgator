@@ -19,17 +19,16 @@ class NavWatcher:
     def on_file_system_event(cls, event):
         """Invokes provided callback on FileSystemEvent."""
         loc = str(pathlib.PurePath(event.src_path).parent)
-        logger.debug("Change detected")
+        logger.debug(f"Change detected in {loc}")
         try:
             for callback in cls.monitored[loc]['callbacks']:
                 callback(event, loc)
         except KeyError:
             # KeyError occurs for parent folders. Expected
-            # logger.warning(f"No callbacks available for {loc}")
             pass
 
     @classmethod
-    def add_path(cls, loc, callback):
+    def add_path(cls, loc, callback, recursive=False):
         """Adds callbacks and watches for the said location."""
         if not os.path.exists(loc):
             logger.warning(f"{loc} no longer exists.")
@@ -42,7 +41,8 @@ class NavWatcher:
             cls.monitored[loc] = {
                 "stamp": os.stat(loc).st_mtime,
                 "callbacks": [callback],
-                "watch": cls.observer.schedule(cls.event_handler, loc),
+                "watch": cls.observer.schedule(cls.event_handler, loc,
+                                               recursive=recursive),
             }
             # partitions = psutil.disk_partitions()
             # mp = None
@@ -68,7 +68,7 @@ class NavWatcher:
         """Removes callbacks and watches for the said location."""
         try:
             cls.monitored[loc]['callbacks'].remove(callback)
-            logger.debug(f"Callback {callback} removed from {loc}")
+            logger.debug(f"Callback removed from {loc}")
         except (KeyError, ValueError):
             logger.warning(f"Error removing callback for {loc}")
         try:

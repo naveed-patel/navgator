@@ -210,7 +210,9 @@ class NavTab(QtWidgets.QFrame):
             NavColumn("Ext", 50),
             NavColumn("Size", 100),
             NavColumn("Modified", 150),
-            NavColumn("Thumbnails", 128)
+            NavColumn("Thumbnails", 128),
+            NavColumn("Path", 200),
+            NavColumn("Deleted", 100)
         ]
         self.model = NavItemModel(self, self.header)
         self.proxy = NavSortFilterProxyModel(self)
@@ -264,10 +266,24 @@ class NavTab(QtWidgets.QFrame):
         self.switch_view(self.vtype, self.vsize)
 
     def sort_random(self):
+        """Sort the list randomly"""
+        cursel = self.get_selected_items(False)
         self.model.layoutAboutToBeChanged.emit()
         random.shuffle(self.model.files)
         self.model.layoutChanged.emit()
+        self.view.clearSelection()
+        self.select_items(cursel)
         self.sort_order = -1
+
+    def select_items(self, cursel):
+        """Select provided list of items."""
+        if cursel:
+            for i in range(self.proxy.rowCount()):
+                index = self.proxy.index(i, 0)
+                name = self.proxy.itemData(index).get(0)
+                if name in cursel:
+                    self.view.selectionModel().select(
+                        index, QtCore.QItemSelectionModel.Select)
 
     def init_header(self):
         """Initializes a header with checkbox selection."""
@@ -472,7 +488,7 @@ class NavTab(QtWidgets.QFrame):
         """Navigates to the provided location."""
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         logger.debug(f"Navigating to {d}")
-        if d != self.location and os.path.exists(d):
+        if (d != self.location and os.path.exists(d) or d == "trash"):
             if Nav.conf["history_without_dupes"]:
                     # if self.location in self.history:
                     #     logger.debug(f"Remove {self.location} from history")
@@ -482,7 +498,9 @@ class NavTab(QtWidgets.QFrame):
                         self.history.remove(d)
             self.history.append(self.location)
             self.load_tab(d)
+            self.location_changed.emit(self.location)
             self.future.clear()
+            return d
 
     def go_up(self):
         """Go up the tree."""
@@ -539,17 +557,14 @@ class NavTab(QtWidgets.QFrame):
             self.proxy.setData(index, QtCore.Qt.Unchecked,
                                QtCore.Qt.CheckStateRole)
 
-        selstat = len(self.view.selectionModel().selectedIndexes())
-        if selstat:
-            selcount, selsize = self.model.get_selection_stats()
-            selinfo = f" Selected: {selcount} : " \
-                      f"{humansize(selsize)}"
+        selinfo = self.get_selection_info()
+        if selinfo:
+            selstat = len(self.view.selectionModel().selectedIndexes())
             if (selstat >= self.proxy.rowCount()):
                 self.hv.updateCheckState(1)
             else:
                 self.hv.updateCheckState(2)
         else:
-            selinfo = ""
             self.hv.updateCheckState(0)
         Pub.notify(f"Panes.{self.pid}.Tabs", f"{self.status_info} {selinfo}")
 
@@ -562,7 +577,14 @@ class NavTab(QtWidgets.QFrame):
             else:
                 self.view.selectAll()
         else:
-                self.view.clearSelection()
+            self.view.clearSelection()
+
+    def get_selection_info(self):
+        """Get status text information for selections."""
+        if len(self.view.selectionModel().selectedIndexes()):
+            selcount, selsize = self.model.get_selection_stats()
+            return f" Selected: {selcount} : {humansize(selsize)}"
+        return ""
 
     def invert_selection(self):
         """Toggles (de)selection of items in current listing."""
@@ -594,22 +616,22 @@ class NavTab(QtWidgets.QFrame):
     def load_tab(self, loc=None, forced=False):
         """Loads a tab if not already loaded or is stale."""
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
+        logger.debug(f"Navigating to {loc} and current is {self.location}")
         if loc is None:
             loc = self.location
-        # if not os.path.isdir(loc):
-        #     logger.debug(f"{loc} isn't a directory")
-        #     Pub.notify("App", f"{loc} isn't a directory.")
-        #     return
-        # logger.debug(loc)
-        # if not os.path.exists(loc):
-        #     return
         if (forced and self._loading is False) or loc != self.location \
                 or self.is_changed(loc, self.model.last_read):
             if not forced:
                 self.filter_text = ""
-            self.hv.updateCheckState(0)  # Uncheck main checkbox
+            cursel = self.get_selected_items(False)
+            # if not cursel:
+            self.view.clearSelection()
+            # self.hv.updateCheckState(0)  # Uncheck main checkbox
             self._loading = True
-            self.model.list_dir(loc)
+            if loc != "trash":
+                self.model.list_dir(loc)
+            else:
+                self.model.list_trash()
             try:
                 free_disk = humansize(shutil.disk_usage(loc)[2])
             except OSError:
@@ -625,8 +647,17 @@ class NavTab(QtWidgets.QFrame):
             self._loading = False
             if self.location != os.path.abspath(loc):
                 self.view.clearSelection()
-                self.location = os.path.abspath(loc)
-                self.location_changed.emit(self.location)
+                if loc != "trash":
+                    self.location = os.path.abspath(loc)
+                    # self.location_changed.emit(self.location)
+                else:
+                    if self.location != "trash":
+                        self.location = "trash"
+                        # self.location_changed.emit(self.location)
+            elif cursel:  # restore selections
+                self.select_items(cursel)
+            Pub.notify(f"Panes.{self.pid}.Tabs", f"{self.status_info}"
+                       f"{self.get_selection_info()}")
 
     def is_changed(self, loc, last_read):
         try:
@@ -639,6 +670,9 @@ class NavTab(QtWidgets.QFrame):
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         name = os.path.basename(evt.src_path)
         logger.debug(f"{name} {evt.event_type}")
+        # if self.location == "trash":
+        #     self.load_tab(forced=True)
+        #     return
         if evt.event_type == "deleted":
             logger.debug(f"{evt.src_path} deleted in {self.location}")
             self.model.remove_row(name)
@@ -653,17 +687,15 @@ class NavTab(QtWidgets.QFrame):
         elif evt.event_type == "modified":
             logger.debug(f"{self.location}: {evt.src_path} Modified")
             self.model.update_row(name)
-        # selstat = len(self.view.selectionModel().selectedIndexes())
-        selstat = len(self.view.selectionModel().selectedIndexes())
-        if selstat:
-            selcount, selsize = self.model.get_selection_stats()
-            selinfo = f" Selected: {selcount} : " \
-                      f"{humansize(selsize)}"
-        else:
-            selinfo = ""
-        self.status_info = f"Files: {self.model.fcount}, Dirs: " \
-            f"{self.model.dcount} Total: {humansize(self.model.total)} " \
-            f"Free: {humansize(shutil.disk_usage(self.location)[2])} {selinfo}"
+        try:
+            self.status_info = (
+                f"Files: {self.model.fcount}, Dirs: "
+                f"{self.model.dcount} Total: {humansize(self.model.total)} "
+                f"Free: {humansize(shutil.disk_usage(self.location)[2])} "
+                f"{self.get_selection_info()}")
+        except Exception as e:
+            logger.error(e)
+            self.status_info = ""
 
     def sortIndicatorChanged(self, logicalIndex, sortOrder):
         """Remembers the sorted column and order."""
@@ -880,10 +912,15 @@ class NavTab(QtWidgets.QFrame):
             if os.path.exists(url):
                 logger.debug(url)
 
-    def get_selected_items(self):
+    def get_selected_items(self, full=True):
         """Returns list of selected item."""
-        files = [os.path.join(self.location, self.proxy.itemData(index).get(0))
-                 for index in self.view.selectionModel().selectedIndexes()]
+        if full:
+            files = [os.path.join(self.location,
+                                  self.proxy.itemData(index).get(0))
+                     for index in self.view.selectionModel().selectedIndexes()]
+        else:
+            files = [self.proxy.itemData(index).get(0)
+                     for index in self.view.selectionModel().selectedIndexes()]
         return files
 
     def columns_moved(self, ind, old, new):

@@ -6,6 +6,7 @@ from .core import Nav
 from .custom import NavTree
 from .helper import logger
 from .navwatcher import NavWatcher
+from .navtrash import NavTrash
 from .pub import Pub
 from .tabs import NavTabWidget
 
@@ -29,13 +30,14 @@ class NavPane(QtWidgets.QFrame):
         self.tree.clicked[QtCore.QModelIndex].connect(self.tree_navigate)
         self.abar.returnPressed.connect(self.go_to)
         self.tabbar = NavTabWidget(self)
+        self.trash_folders = set()
         # Create button that must be placed in tabs row
         new_tab = QtWidgets.QToolButton()
         new_tab.setText("+")
         self.tabbar.setCornerWidget(new_tab, QtCore.Qt.TopRightCorner)
         new_tab.clicked.connect(lambda: self.tabbar.new_tab())
         try:
-            logger.debug(f"{self.pid}: Restoring tabs")
+            # logger.debug(f"{self.pid}: Restoring tabs")
             for i in range(pane_info["tabs"]["total"]):
                 tab_info = pane_info["tabs"][str(i)]
                 self.tabbar.new_tab(tab_info)
@@ -43,7 +45,7 @@ class NavPane(QtWidgets.QFrame):
             logger.error(f"{self.pid}: Error restoring tabs")
             self.tabbar.new_tab()
         try:
-            logger.debug(f"Selecting active tab")
+            # logger.debug(f"Selecting active tab")
             self.tabbar.setCurrentIndex(int(pane_info["tabs"]["active"]))
         except KeyError:
             logger.error(f"Error Selecting active tab", exc_info=True)
@@ -67,7 +69,7 @@ class NavPane(QtWidgets.QFrame):
             Pub.subscribe(f"Panes.{self.pid}", self.update_status_bar)
             self.update_gui(self.tabbar.currentWidget().location)
             # start monitoring active tab for refreshing
-            NavWatcher.add_path(self.location, self.change_detected)
+            self.start_monitoring(self.location)
             NavWatcher.start()
         self.installEventFilter(self)  # this will catch focus events
         self.tabbar.tab_created.connect(lambda: self.install_filters())
@@ -78,19 +80,21 @@ class NavPane(QtWidgets.QFrame):
             self.location = self.tabbar.currentWidget().location
             self.update_gui(self.location)
             Pub.subscribe(f"Panes.{self.pid}", self.update_status_bar)
-            NavWatcher.add_path(self.location, self.change_detected)
+            self.start_monitoring(self.location)
             self.tabbar.currentWidget().load_tab()
         else:
-            NavWatcher.remove_path(self.location, self.change_detected)
+            self.stop_monitoring(self.location)
             Pub.unsubscribe(f"Panes.{self.pid}", self.update_status_bar)
 
     def change_detected(self, evt, loc: str):
         """Informs current tab if its current directory was changed."""
-        if loc == self.location:
+        logger.debug(f"Called back and trash is {self.trash_folders}")
+        if loc == self.location or loc in self.trash_folders:
             try:
                 self.tabbar.currentWidget().change_detected(evt)
             except OSError as e:
                 logger.error(e)
+                self.sb.showMessage(e)
                 return
             self.sb.showMessage(self.tabbar.currentWidget().status_info)
 
@@ -189,8 +193,8 @@ class NavPane(QtWidgets.QFrame):
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         if loc != self.location:
             try:
-                NavWatcher.remove_path(self.location, self.change_detected)
-                NavWatcher.add_path(loc, self.change_detected)
+                self.stop_monitoring(self.location)
+                self.start_monitoring(loc)
                 os.chdir(loc)
                 self.location = loc
                 self.abar.setText(self.location)
@@ -220,3 +224,23 @@ class NavPane(QtWidgets.QFrame):
     def update_status_bar(self, msg):
         """Updates status bar for pane with provided message."""
         self.sb.showMessage(msg)
+
+    def start_monitoring(self, loc):
+        """Start monitoring location(s)"""
+        if loc != "trash":
+            NavWatcher.add_path(loc, self.change_detected)
+        else:
+            for tf in NavTrash.get_trash_folders():
+                folder = f"{tf}{os.sep}files"
+                NavWatcher.add_path(folder, self.change_detected)
+                self.trash_folders.add(folder)
+
+    def stop_monitoring(self, loc):
+        """Stop monitoring location(s)"""
+        if loc != "trash":
+            NavWatcher.remove_path(loc, self.change_detected)
+        else:
+            for tf in NavTrash.get_trash_folders():
+                NavWatcher.remove_path(f"{tf}{os.sep}files",
+                                       self.change_detected)
+            self.trash_folders = set()

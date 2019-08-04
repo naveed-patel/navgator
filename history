@@ -1,3 +1,9 @@
+v0.5.5 2019-08-04 11:56 BST
+++ Trash is listed. Enter "trash" in address bar. 
++ F5 - Refresh active tab in active pane
+* Selections were lost on randomizing.
+! Crash when hiding active pane. Fixed.
+
 v0.5.4 2019-07-30 21:49 BST
 ! Navigation to non-existent directories was possible. It would show
   blank list of rows. Fixed
