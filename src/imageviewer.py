@@ -38,27 +38,25 @@ class NavViewer(QtWidgets.QMainWindow):
                 self.close()
                 # self.destroy()
             elif key == QtCore.Qt.Key_Left:
-                self.load_index(Nav.pact.tabbar.currentWidget().proxy.
-                                previous_index(self.ind))
+                self.load_index(self.owner.proxy.previous_index(self.ind))
             elif key == QtCore.Qt.Key_Right or key == QtCore.Qt.Key_Space:
-                self.load_index(Nav.pact.tabbar.currentWidget().proxy.
-                                next_index(self.ind))
+                self.load_index(self.owner.proxy.next_index(self.ind))
             elif key == QtCore.Qt.Key_Delete and self.cur_file is not None:
-                Nav.pact.tabbar.currentWidget().trash([self.cur_file])
+                logger.debug(f"Deleting {self.cur_file}")
+                self.owner.trash([self.cur_file])
                 self.load_index(self.ind) or \
-                    (self.load_index(Nav.pact.tabbar.currentWidget().proxy.
-                                     previous_index(self.ind))
+                    (self.load_index(self.owner.proxy.previous_index(self.ind))
                         if self.ind > 0 else self.load_index(self.ind))
             else:
                 super().keyPressEvent(event)
         return False
 
-    def loadCurrentImage(self):
+    def loadCurrentImage(self, owner):
         """Gets the index for currently selected item."""
-        self.ind = Nav.pact.tabbar.currentWidget().view.currentIndex().row()
+        self.owner = owner
+        self.ind = self.owner.view.currentIndex().row()
         if self.ind < 0:
             self.ind = 0
-        logger.debug(self.ind)
         self.load_index(self.ind)
 
     def load_index(self, index):
@@ -69,19 +67,22 @@ class NavViewer(QtWidgets.QMainWindow):
             self.imgvwr.setPhoto(QtGui.QPixmap())
             return
         self.ind = index
-        self.cur_file = Nav.pact.tabbar.currentWidget().proxy.data(
-            Nav.pact.tabbar.currentWidget().proxy.index(index, 0))
+        self.cur_file = self.owner.proxy.get_full_name_at_row(
+            index)
+        total = self.owner.proxy.rowCount()
         if self.cur_file is None:
-            if Nav.pact.tabbar.currentWidget().proxy.rowCount() == 0:
+            if total == 0:
                 self.close()
             else:
                 self.imgvwr.setPhoto(QtGui.QPixmap())
                 self.setWindowTitle(f"Image Viewer")
             return False
-        d = Nav.pact.tabbar.currentWidget().location
-        total = Nav.pact.tabbar.currentWidget().proxy.rowCount()
-        self.setWindowTitle(f"{self.ind+1}/{total}: {d}/{self.cur_file}")
-        info = magic.detect_from_filename(self.cur_file)
+        self.setWindowTitle(f"{self.ind+1}/{total}: {self.cur_file}")
+        try:
+            info = magic.detect_from_filename(self.cur_file)
+        except ValueError as e:
+            logger.debug(e)
+            return False
         self._zoom = 0
         if info.mime_type == "image/gif":
             self.stack.setCurrentWidget(self.gifvwr)

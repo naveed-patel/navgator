@@ -11,6 +11,16 @@ from .helper import logger, humansize
 from .pub import Pub
 from .navtrash import NavTrash
 
+NAME = 0
+EXT = 1
+SIZE = 2
+MODIFIED = 3
+PATH = 4
+DELETED = 5
+FULLNAME = 6
+THUMBNAIL = 7
+STATE = -1
+
 
 class NavIcon:
     """Icon store for files."""
@@ -41,56 +51,96 @@ class NavItemModel(QtCore.QAbstractItemModel):
         self.parent = parent
         self.pid = self.parent.pid
         self.header = header
+        # logger.debug(self.header)
         self.files = []
         self.fcount = self.dcount = self.total = 0
         self.last_read = 0
-        self.state = -1
+        self._loading = False
+        self.location = None
 
     def model_size(self, width, height):
         """Set the size for icons and thumbnails."""
+        logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         self.tw = width
         self.th = height
 
-    def list_trash(self):
-        self.files = []
-        for tf in NavTrash.get_trash_folders():
-            self.list_dir(tf, 1)
+    # def update_header(self, header):
+    #     """Update the model header"""
+    #     self.header = header
+
+    def is_changed(self, loc, last_read):
+        for d in loc.split(";"):
+            try:
+                if last_read < os.stat(d).st_mtime:
+                    return True
+            except FileNotFoundError:
+                return True
+        return False
+
+    def load_tab(self, loc, forced=False):
+        """Loads a tab if not already loaded or is stale."""
+        # logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
+        # logger.debug(f"Navigating to {loc} and current is {self.location}")
+        if loc is None or loc != self.location:
+            self.last_read = 0
+        #     loc = self.location
+        if (forced and self._loading is False) or loc != self.location \
+                or self.is_changed(loc, self.last_read):
+            logger.debug("Loading required")
+            self.location = loc
+            self._loading = True
+            # if loc != "trash":
+            self.list_dirs(loc)
+            # else:
+            #     self.list_trash()
+            self._loading = False
+            return True
+        logger.debug("Loading Skipped")
+        return False
+
+    # def list_trash(self):
+    #     self.files = []
+    #     self.fcount = self.dcount = self.total = self.selsize = 0
+    #     self.last_read = datetime.datetime.now().timestamp()
+    #     for tf in NavTrash.get_trash_folders():
+    #         self.list_dir(tf, 1)
 
     def list_dirs(self, ds):
         """Invokes list_dir for each dir in  the list"""
-        for d in ds:
+        logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
+        self.files = []
+        self.fcount = self.dcount = self.total = self.selsize = 0
+        self.last_read = datetime.datetime.now().timestamp()
+        for d in ds.split(";"):
             self.list_dir(d)
 
     def list_dir(self, d: str, kind=0):
         """Updates the model with directory listing."""
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         if not os.path.exists(d):
-            self.files = []
+            # self.files = []
             self.layoutAboutToBeChanged.emit()
             self.layoutChanged.emit()
             Pub.notify(f"App.{self.pid}.Tabs",
                        f"{self.pid}: {d} does not exist")
             return
-        try:
-            os.chdir(d)
-        except PermissionError:
-            self.status_info = f"Permission Denied for {d}"
-            return False
-        except NotADirectoryError:
-            logger.error(f"{d} is not a directory")
-            return False
-        self.fcount = self.dcount = self.total = self.selsize = 0
+        # try:
+        #     os.chdir(d)
+        # except PermissionError:
+        #     self.status_info = f"Permission Denied for {d}"
+        #     return False
+        # except NotADirectoryError:
+        #     logger.error(f"{d} is not a directory")
+        #     return False
         self.layoutAboutToBeChanged.emit()
         if kind:
             mp = pathlib.Path(f"{d}{os.sep}").parent
             ti = pathlib.Path(f"{d}{os.sep}info{os.sep}")
             d = pathlib.Path(f"{d}{os.sep}files")
-        else:
-            self.files = []
+        # else:
+        #     self.files = []
 
         with os.scandir(d) as it:
-            # self.last_read = os.stat(d).st_mtime
-            self.last_read = datetime.datetime.now().timestamp()
             for entry in it:
                 if entry.is_file():
                     state = 0
@@ -109,7 +159,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
 
                 if kind:
                     info = f"{ti}{os.sep}{entry.name}.trashinfo"
-                    current = f"{d}{os.sep}{entry.name}"
+                    # current = f"{d}{os.sep}{entry.name}"
                     with open(info, "r") as fh:
                         contents = fh.readlines()
                         for line in contents:
@@ -121,15 +171,18 @@ class NavItemModel(QtCore.QAbstractItemModel):
                                 origin = line[len('Path='):]
                                 if not origin.startswith("/"):
                                     origin = f"{mp}{os.sep}{origin}"
-                    self.files.append([entry.name, ext, size, modified,
-                                       deleted, origin, current, state])
+                    self.files.append([entry.name, ext, size, modified, d,
+                                       deleted, origin, state])
                 else:
-                    self.files.append([entry.name, ext, size, modified, state])
+                    self.files.append([entry.name, ext, size, modified, d,
+                                       state])
         self.layoutChanged.emit()
 
     def insert_row(self, new_item: str):
         """Inserts a new item to the model."""
-        if new_item not in self.files:
+        path = os.path.dirname(new_item)
+        name = os.path.basename(new_item)
+        if name not in self.files:
             try:
                 if os.path.isfile(new_item):
                     state = 0
@@ -148,7 +201,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
                                time.localtime(stats.st_mtime)))
                 new_pos = self.rowCount()
                 self.beginInsertRows(QtCore.QModelIndex(), new_pos, new_pos)
-                self.files.append([new_item, ext, size, modified, state])
+                self.files.append([name, ext, size, modified, path, state])
                 Pub.notify("App", f"{self.pid}: {new_item} was added.")
                 self.endInsertRows()
                 return True
@@ -157,26 +210,28 @@ class NavItemModel(QtCore.QAbstractItemModel):
 
     def update_row(self, upd_item: str):
         """Updates a row in the model."""
+        # path = os.path.dirname(upd_item)
+        name = os.path.basename(upd_item)
         for item in self.files:
-            if item[0] == upd_item:
+            if item[NAME] == name:
                 ind = self.files.index(item)
-                if item[self.state] & ~NavStates.IS_DIR:
+                if item[STATE] & ~NavStates.IS_DIR:
                     try:
-                        self.total -= item[2]
+                        self.total -= item[SIZE]
                     except Exception:
                         logger.debug(f"Error getting size for {upd_item}",
                                      exc_info=True)
                 try:
                     stats = os.lstat(upd_item)
                 except FileNotFoundError as e:
-                    # Deletion invoked modify. 
+                    # Deletion invoked modify.
                     # Ignore as deletion event will handle it
                     return
                 self.layoutAboutToBeChanged.emit()
-                self.files[ind][2] = stats.st_size
-                self.total += self.files[ind][2]
-                self.files[ind][3] = str(time.strftime('%Y-%m-%d %H:%M',
-                                         time.localtime(stats.st_mtime)))
+                self.files[ind][SIZE] = stats.st_size
+                self.total += self.files[ind][SIZE]
+                self.files[ind][MODIFIED] = str(time.strftime(
+                    '%Y-%m-%d %H:%M', time.localtime(stats.st_mtime)))
                 self.layoutChanged.emit()
                 # try:
                 #     self.last_read = os.stat(self.parent.location).st_mtime
@@ -189,9 +244,9 @@ class NavItemModel(QtCore.QAbstractItemModel):
     def rename_row(self, old_name: str, new_name: str):
         """Renames a row in the model."""
         for item in self.files:
-            if item[0] == old_name:
+            if item[NAME] == old_name:
                 ind = self.files.index(item)
-                self.files[ind][0] = new_name
+                self.files[ind][NAME] = new_name
                 self.dataChanged.emit(self.createIndex(0, 0),
                                       self.createIndex(self.rowCount(0),
                                       self.columnCount(0)))
@@ -203,27 +258,30 @@ class NavItemModel(QtCore.QAbstractItemModel):
 
     def remove_row(self, rem_item: str):
         """ Remove a row from the model."""
+        if os.sep in rem_item:
+            rem_item = os.path.basename(rem_item)
         for item in self.files:
-            if rem_item == item[0]:
-                if item[self.state] & NavStates.IS_DIR:
+            if rem_item == item[NAME]:
+                if item[STATE] & NavStates.IS_DIR:
                     self.dcount -= 1
                 else:
                     try:
-                        self.total -= item[2]
+                        self.total -= item[SIZE]
                     except Exception:
                         logger.debug(f"Error getting size for {rem_item}",
                                      exc_info=True)
                     self.fcount -= 1
-                if item[self.state] & NavStates.IS_SELECTED:
+                if item[STATE] & NavStates.IS_SELECTED:
                     self.selcount -= 1
                     # try:
-                    self.selsize -= item[2]
+                    self.selsize -= item[SIZE]
                     # except UnboundLocalError:
                     #     pass
                 index = self.files.index(item)
                 self.beginRemoveRows(QtCore.QModelIndex(), index, index)
                 self.files.pop(index)
                 self.endRemoveRows()
+                # logger.debug(f"{item} removed from {index}")
                 Pub.notify("App", f"{self.pid}: {rem_item} was deleted.")
                 break
         return True
@@ -234,7 +292,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
 
     def columnCount(self, parent=None):
         """Returns the no. of rows in current model."""
-        return len(self.header)
+        return len(self.header.keys())
 
     def index(self, row, column, parent=None):
         """Re-implemented to return index of a row."""
@@ -243,44 +301,47 @@ class NavItemModel(QtCore.QAbstractItemModel):
     def data(self, index, role=QtCore.Qt.DisplayRole):
         """Returns data to be displayed in the model."""
         if not index.isValid():
-            logger.debug("returning")
             return None
         try:
             row = index.row()
             column = index.column()
             value = self.files[row][column]
-            # if column == 0:
-            #     logger.debug(f"{value} {self.files[row][self.state]}")
-            # if self.files[row][self.state] & NavStates.IS_FILTERED:
+            h = self.headerData(column, QtCore.Qt.Horizontal,
+                                role=QtCore.Qt.DisplayRole)
+            # logger.debug(f"called for {index} {row} {column} {value}")
+            # if column == NAME:
+            #     logger.debug(f"{value} {self.files[row][STATE]}")
+            # if self.files[row][STATE] & NavStates.IS_FILTERED:
             #     return QtCore.QVariant
             if role == QtCore.Qt.EditRole:
                 return value
             elif role == QtCore.Qt.DecorationRole:
-                if column == 4 or (self.parent.vtype == NavView.Thumbnails):
+                if h == "Thumbnails" or \
+                        self.parent.vtype == NavView.Thumbnails:
                     try:
                         if self.parent.location != "trash":
                             im = Image.open(f"{self.parent.location}{os.sep}"
-                                            f"{self.files[row][0]}")
+                                            f"{self.files[row][NAME]}")
                         else:
-                            im = Image.open(self.files[row][6])
+                            im = Image.open(self.files[row][FULLNAME])
                         im.thumbnail((self.tw, self.th), Image.ANTIALIAS)
                         return QtGui.QImage(ImageQt(im))
                     except Exception:
                         # Icon if thumbnails can't be generated
-                        return NavIcon.get_icon(self.files[row][0],
-                                                ext=self.files[row][1])
-                elif column == 0:
-                    return NavIcon.get_icon(self.files[row][0],
-                                            ext=self.files[row][1])
+                        return NavIcon.get_icon(self.files[row][NAME],
+                                                ext=self.files[row][EXT])
+                elif column == NAME:
+                    return NavIcon.get_icon(self.files[row][NAME],
+                                            ext=self.files[row][EXT])
                 else:
                     return None
             elif role == QtCore.Qt.DisplayRole:
-                if column == 2:
+                if column == SIZE:
                     return humansize(value)
                 # logger.debug(f"returning {value} for {row} {column}")
-                return value if column != 4 else ""
-            elif role == QtCore.Qt.CheckStateRole and column == 0:
-                if self.files[row][self.state] & NavStates.IS_SELECTED:
+                return value if h != "Thumbnails" else ""
+            elif role == QtCore.Qt.CheckStateRole and column == NAME:
+                if self.files[row][STATE] & NavStates.IS_SELECTED:
                     return QtCore.Qt.Checked
                 else:
                     return QtCore.Qt.Unchecked
@@ -294,7 +355,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
         if orientation == QtCore.Qt.Horizontal \
                 and role == QtCore.Qt.DisplayRole:
             try:
-                return self.header[column].caption
+                return list(self.header.values())[column].caption
             except IndexError:
                 return ""
         return None
@@ -307,7 +368,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
         prevent selection on other columns."""
         if not index.isValid():
             return QtCore.Qt.ItemIsEnabled
-        if index.column() == 0:
+        if index.column() == NAME:
             return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable | \
                 QtCore.Qt.ItemIsUserCheckable | QtCore.Qt.ItemIsEditable | \
                 QtCore.Qt.ItemIsDragEnabled | QtCore.Qt.ItemIsDropEnabled
@@ -320,11 +381,11 @@ class NavItemModel(QtCore.QAbstractItemModel):
             return False
         if role == QtCore.Qt.CheckStateRole:
             if value == QtCore.Qt.Checked:
-                self.files[index.row()][self.state] |= NavStates.IS_SELECTED
-                self.selsize += self.files[index.row()][2]
+                self.files[index.row()][STATE] |= NavStates.IS_SELECTED
+                self.selsize += self.files[index.row()][SIZE]
             else:
-                self.files[index.row()][self.state] &= ~NavStates.IS_SELECTED
-                self.selsize -= self.files[index.row()][2]
+                self.files[index.row()][STATE] &= ~NavStates.IS_SELECTED
+                self.selsize -= self.files[index.row()][SIZE]
             # Emit signal to select row only if not invoked by it
             if sys._getframe().f_back.f_code.co_name == "__init__":
                 self.dataChanged.emit(index, index)
@@ -332,7 +393,7 @@ class NavItemModel(QtCore.QAbstractItemModel):
         elif role == QtCore.Qt.EditRole:
             r = index.row()
             c = index.column()
-            if c == 0:
+            if c == NAME:
                 old = self.files[r][c]
                 logger.debug(f"Rename {old} to {value}")
                 self.rename(old, value)
@@ -358,10 +419,16 @@ class NavItemModel(QtCore.QAbstractItemModel):
         """Get stats of selected items"""
         self.selsize = self.selcount = 0
         for item in self.files:
-            if item[self.state] & NavStates.IS_SELECTED & ~NavStates.IS_DIR:
-                self.selsize += item[2]
+            if item[STATE] & NavStates.IS_SELECTED & ~NavStates.IS_DIR:
+                self.selsize += item[SIZE]
                 self.selcount += 1
         return self.selcount, self.selsize
+
+    def get_full_name(self, index):
+        try:
+            return self.files[index][PATH] + os.sep + self.files[index][NAME]
+        except IndexError:
+            return None
 
 
 class NavSortFilterProxyModel(QtCore.QSortFilterProxyModel):
@@ -387,8 +454,8 @@ class NavSortFilterProxyModel(QtCore.QSortFilterProxyModel):
         r_data = self.sourceModel().files[right.row()]
         sort_order = self.sortOrder()
         if Nav.conf["sort_folders_first"]:
-            l_dir = l_data[self.sourceModel().state] & NavStates.IS_DIR
-            r_dir = r_data[self.sourceModel().state] & NavStates.IS_DIR
+            l_dir = l_data[STATE] & NavStates.IS_DIR
+            r_dir = r_data[STATE] & NavStates.IS_DIR
             try:
                 if l_dir > r_dir:
                     return sort_order == QtCore.Qt.AscendingOrder
@@ -417,3 +484,10 @@ class NavSortFilterProxyModel(QtCore.QSortFilterProxyModel):
         if index >= self.rowCount()-1:
             return 0
         return index + 1
+
+    def get_full_name_at_row(self, index):
+        ind = self.index(index, 0)
+        return self.sourceModel().get_full_name(self.mapToSource(ind).row())
+
+    def get_full_name(self, index):
+        return self.sourceModel().get_full_name(self.mapToSource(index).row())

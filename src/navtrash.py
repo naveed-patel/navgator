@@ -76,12 +76,16 @@ class NavTrash:
         trash = [str(cls.get_xdg_data_home()) + os.sep + "Trash"]
         for mp in cls.get_mountpoint_names():
             p = pathlib.Path(mp)
-            a = [x for x in p.iterdir() if x.name.startswith(".Trash")
+            d = [x for x in p.iterdir() if x.name.startswith(".Trash")
                  and x.is_dir()]
-            trash += a
-        for a1 in trash:
-            logger.debug(f"{a1}")
+            trash += d
         return trash
+
+    @classmethod
+    def get_trash_locations(cls, sep=";"):
+        if sep is None:
+            return [f"{d}{os.sep}files" for d in cls.get_trash_folders()]
+        return sep.join([f"{d}{os.sep}files" for d in cls.get_trash_folders()])
 
     @classmethod
     def get_trash(cls):
@@ -102,4 +106,3 @@ class NavTrash:
                             if not path.startswith("/"):
                                 path = f"{mp}{os.sep}{path}"
                 logger.debug(f"{f.name} was deleted at {date} from {path}")
-                

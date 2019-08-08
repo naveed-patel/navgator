@@ -88,37 +88,35 @@ class NavPane(QtWidgets.QFrame):
 
     def change_detected(self, evt, loc: str):
         """Informs current tab if its current directory was changed."""
-        logger.debug(f"Called back and trash is {self.trash_folders}")
-        if loc == self.location or loc in self.trash_folders:
-            try:
-                self.tabbar.currentWidget().change_detected(evt)
-            except OSError as e:
-                logger.error(e)
-                self.sb.showMessage(e)
-                return
-            self.sb.showMessage(self.tabbar.currentWidget().status_info)
+        # if loc == self.location:
+        try:
+            self.tabbar.currentWidget().change_detected(evt)
+        except OSError as e:
+            logger.error(e)
+            self.sb.showMessage(e)
+            return
+        self.sb.showMessage(self.tabbar.currentWidget().status_info)
 
     def eventFilter(self, obj, event):
         """Reimplemented to handle active pane."""
         if event.type() == QtCore.QEvent.MouseButtonPress:
             # logger.debug(f"{self.pid}: {event} {event.type()} for {obj}")
             self.location = self.tabbar.currentWidget().location
-            try:
-                if os.getcwd() != self.location:
-                    os.chdir(self.location)
-            except FileNotFoundError:
-                pass
-            except NotADirectoryError:
-                logger.error(f"{self.location} is not a directory")
+            # try:
+            #     if os.getcwd() != self.location:
+            #         os.chdir(self.location)
+            # except FileNotFoundError:
+            #     pass
+            # except NotADirectoryError:
+            #     logger.error(f"{self.location} is not a directory")
             self.pane_updated.emit(self)
             return QtCore.QObject.eventFilter(self, obj, event)
         else:
             return False
 
     def showEvent(self, event):
-        """Installs event filters in all children of panel."""
+        """Overloaded to install event filters in all children of panel."""
         super().showEvent(event)
-        # this will install event filter in all children of the panel
         self.install_filters()
 
     def install_filters(self):
@@ -171,12 +169,16 @@ class NavPane(QtWidgets.QFrame):
                     Pub.notify("App", f"{self.pid}: Alias {loc} not set.")
                     self.abar.setText(self.location)
                     return
-        ret = self.tabbar.currentWidget().navigate(loc)
-        self.sb.showMessage(self.tabbar.currentWidget().status_info)
-        if ret:
-            self.location = loc
+        if loc == "trash":
+            ds = NavTrash.get_trash_locations()
+            ret = self.tabbar.currentWidget().navigate(ds)
         else:
-            self.abar.setText(self.location)
+            ret = self.tabbar.currentWidget().navigate(loc)
+            if ret:
+                self.location = loc
+            else:
+                self.abar.setText(self.location)
+        self.sb.showMessage(self.tabbar.currentWidget().status_info)
 
     def tab_changed(self):
         """Update GUI elements to reflect the tab change."""
@@ -195,7 +197,7 @@ class NavPane(QtWidgets.QFrame):
             try:
                 self.stop_monitoring(self.location)
                 self.start_monitoring(loc)
-                os.chdir(loc)
+                # os.chdir(loc)
                 self.location = loc
                 self.abar.setText(self.location)
                 self.position_tree(self.location)
@@ -206,7 +208,7 @@ class NavPane(QtWidgets.QFrame):
         # load tab if not already loaded
         self.tabbar.currentWidget().load_tab()
         # self.tabbar.currentWidget().navigate(loc)
-        self.tabbar.currentWidget().bcbar.create_crumbs(loc)
+        self.tabbar.currentWidget().bcbar.create_crumbs(loc.split(";")[0])
         self.check_navigation_options()
         self.filter_edit.setText(self.tabbar.currentWidget().filter_text)
         self.sb.showMessage(self.tabbar.currentWidget().status_info)
@@ -228,19 +230,19 @@ class NavPane(QtWidgets.QFrame):
     def start_monitoring(self, loc):
         """Start monitoring location(s)"""
         if loc != "trash":
-            NavWatcher.add_path(loc, self.change_detected)
+            for d in loc.split(";"):
+                NavWatcher.add_path(d, self.change_detected)
         else:
-            for tf in NavTrash.get_trash_folders():
-                folder = f"{tf}{os.sep}files"
-                NavWatcher.add_path(folder, self.change_detected)
-                self.trash_folders.add(folder)
+            for tf in NavTrash.get_trash_locations(sep=None):
+                NavWatcher.add_path(tf, self.change_detected)
+                self.trash_folders.add(tf)
 
     def stop_monitoring(self, loc):
         """Stop monitoring location(s)"""
         if loc != "trash":
-            NavWatcher.remove_path(loc, self.change_detected)
+            for d in loc.split(";"):
+                NavWatcher.remove_path(d, self.change_detected)
         else:
-            for tf in NavTrash.get_trash_folders():
-                NavWatcher.remove_path(f"{tf}{os.sep}files",
-                                       self.change_detected)
+            for tf in NavTrash.get_trash_locations(sep=None):
+                NavWatcher.remove_path(tf, self.change_detected)
             self.trash_folders = set()

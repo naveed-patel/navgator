@@ -1,6 +1,6 @@
 #!/bin/python3
 
-# import faulthandler
+import faulthandler
 import json
 import os
 import pathlib
@@ -678,9 +678,9 @@ class Navgator(QtWidgets.QMainWindow):
             for j in range(Nav.conf["panes"][paneid]["tabs"]["total"]):
                 tab = self.panes[p].tabbar.widget(j)
                 headers = []
-                for h in tab.header:
-                    if h.visible:
-                        headers.append([h.caption, h.size, h.position])
+                for k, v in tab.header.items():
+                    if v.visible:
+                        headers.append([v.caption, v.size, v.position])
 
                 Nav.conf["panes"][paneid]["tabs"][j] = {
                         "location": tab.location,
@@ -754,7 +754,7 @@ class Navgator(QtWidgets.QMainWindow):
         if self.img_vwr is None:
             self.img_vwr = NavViewer()
         self.img_vwr.show()
-        self.img_vwr.loadCurrentImage()
+        self.img_vwr.loadCurrentImage(Nav.pact.tabbar.currentWidget())
 
 
 def exception_hook(exctype, val, trcbk):
@@ -778,6 +778,6 @@ def trace(frame, event, arg):
 
 
 if __name__ == '__main__':
-    # faulthandler.enable()
+    faulthandler.enable()
     # sys.settrace(trace)
     main()

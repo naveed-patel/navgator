@@ -8,7 +8,6 @@ import subprocess
 import sys
 import threading
 from PyQt5 import QtWidgets, QtCore, QtGui
-from PIL import Image
 from send2trash import send2trash
 from .breadcrumbs import NavBreadCrumbsBar
 from .helper import logger, humansize
@@ -205,15 +204,15 @@ class NavTab(QtWidgets.QFrame):
         except (KeyError, TypeError):
             self.sort_order = 0
 
-        self.header = [
-            NavColumn("Name", 300),
-            NavColumn("Ext", 50),
-            NavColumn("Size", 100),
-            NavColumn("Modified", 150),
-            NavColumn("Thumbnails", 128),
-            NavColumn("Path", 200),
-            NavColumn("Deleted", 100)
-        ]
+        self.header = {
+            "Name": NavColumn("Name", 300),
+            "Ext": NavColumn("Ext", 50),
+            "Size": NavColumn("Size", 100),
+            "Modified": NavColumn("Modified", 150),
+            "Thumbnails": NavColumn("Thumbnails", 128),
+            "Path": NavColumn("Path", 200),
+            "Deleted": NavColumn("Deleted", 100)
+        }
         self.model = NavItemModel(self, self.header)
         self.proxy = NavSortFilterProxyModel(self)
         self.proxy.setSourceModel(self.model)
@@ -227,21 +226,24 @@ class NavTab(QtWidgets.QFrame):
 
         # Show columns for tab
         if "columns" in tab_info:
-            for idx, h in enumerate(self.header):
+            idx = 0
+            for k, v in self.header.items():
+                # logger.debug(f"{k}: {")
                 flag = 0
+                # Check if column should be displayed
                 for col in tab_info["columns"]:
-                    if h.caption == col[0]:
+                    if v.caption == col[0]:
                         flag = 1
                         break
-                if not flag and idx != 0:
+                # Hide column if it isn't Name column
+                if not flag and k != "Name":
                     self.hv.hideSection(idx)
-                    h.visible = False
+                    v.visible = False
+                # If it is to be displayed at said index, position it=
                 elif col[2] != -1:
                     vis_ind = self.hv.visualIndex(idx)
                     self.hv.moveSection(vis_ind, col[2])
-            # Capture movements made before connecting the signal
-            self.columns_visibility_changed(4, "Thumbnails",
-                                            self.header[4].visible)
+                idx += 1
             self.columns_moved(0, 0, 0)
         # Connect to save column movements
         self.hv.sectionMoved.connect(self.columns_moved)
@@ -343,7 +345,6 @@ class NavTab(QtWidgets.QFrame):
         self.vsize = size
         width = self.widths[size]
         height = self.heights[size]
-        self.model.model_size(width, height)
 
         if new_view == NavView.Details:
             if self.tv is not self.view:
@@ -354,6 +355,9 @@ class NavTab(QtWidgets.QFrame):
                 self.lyt.addWidget(self.view)
                 self.view.selectionModel().select(
                     selections, QtCore.QItemSelectionModel.ClearAndSelect)
+            self.columns_visibility_changed(list(self.header.keys()).index(
+                                            "Thumbnails"), "Thumbnails",
+                                            self.header["Thumbnails"].visible)
             return
         elif self.lv is not self.view:
             selections = self.view.selectionModel().selection()
@@ -488,15 +492,22 @@ class NavTab(QtWidgets.QFrame):
         """Navigates to the provided location."""
         logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
         logger.debug(f"Navigating to {d}")
-        if (d != self.location and os.path.exists(d) or d == "trash"):
-            if Nav.conf["history_without_dupes"]:
-                    # if self.location in self.history:
-                    #     logger.debug(f"Remove {self.location} from history")
-                    #     self.history.remove(self.location)
-                    if d in self.history:
-                        logger.debug(f"Removing {d} from history")
-                        self.history.remove(d)
+        if d != self.location:
+            if Nav.conf["history_without_dupes"] and d in self.history:
+                logger.debug(f"Removing {d} from history")
+                self.history.remove(d)
             self.history.append(self.location)
+            # if "Trash" in d:
+            #     self.header["Deleted"].visible = True
+            #     self.header["Path"].visible = True
+            # elif ";" in d:
+            #     self.header["Deleted"].visible = False
+            #     self.header["Path"].visible = True
+            # else:
+            #     self.header["Deleted"].visible = False
+            #     self.header["Path"].visible = True
+            # self.model.update_header(header)
+            # self.hv.update_headers()
             self.load_tab(d)
             self.location_changed.emit(self.location)
             self.future.clear()
@@ -519,7 +530,7 @@ class NavTab(QtWidgets.QFrame):
                     self.future.remove(self.location)
                 self.future.append(self.location)
                 self.load_tab(d)
-                logger.debug(f"Future: {self.future}")
+                # logger.debug(f"Future: {self.future}")
         except IndexError:
             logger.error(f"No more back")
 
@@ -527,7 +538,7 @@ class NavTab(QtWidgets.QFrame):
         """Go forward in future."""
         try:
             d = self.future.pop()
-            if d != self.location:
+            if d != self.location and os.path.exists(d):
                 if self.location in self.history:
                     self.history.remove(self.location)
                 self.history.append(self.location)
@@ -619,19 +630,11 @@ class NavTab(QtWidgets.QFrame):
         logger.debug(f"Navigating to {loc} and current is {self.location}")
         if loc is None:
             loc = self.location
-        if (forced and self._loading is False) or loc != self.location \
-                or self.is_changed(loc, self.model.last_read):
-            if not forced:
-                self.filter_text = ""
-            cursel = self.get_selected_items(False)
-            # if not cursel:
+        if not forced:
+            self.filter_text = ""
+        cursel = self.get_selected_items(False)
+        if self.model.load_tab(loc, forced):
             self.view.clearSelection()
-            # self.hv.updateCheckState(0)  # Uncheck main checkbox
-            self._loading = True
-            if loc != "trash":
-                self.model.list_dir(loc)
-            else:
-                self.model.list_trash()
             try:
                 free_disk = humansize(shutil.disk_usage(loc)[2])
             except OSError:
@@ -644,7 +647,6 @@ class NavTab(QtWidgets.QFrame):
                     self.sort_random()
                 else:
                     self.tv.sortByColumn(self.sort_column, self.sort_order)
-            self._loading = False
             if self.location != os.path.abspath(loc):
                 self.view.clearSelection()
                 if loc != "trash":
@@ -659,39 +661,30 @@ class NavTab(QtWidgets.QFrame):
             Pub.notify(f"Panes.{self.pid}.Tabs", f"{self.status_info}"
                        f"{self.get_selection_info()}")
 
-    def is_changed(self, loc, last_read):
-        try:
-            return last_read < os.stat(loc).st_mtime
-        except FileNotFoundError:
-            return True
-
     def change_detected(self, evt):
         """Invokes appropriate methods to add/update/remove listed files."""
-        logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
-        name = os.path.basename(evt.src_path)
-        logger.debug(f"{name} {evt.event_type}")
-        # if self.location == "trash":
-        #     self.load_tab(forced=True)
-        #     return
+        # logger.debug(f"Invoked by {sys._getframe().f_back.f_code.co_name}")
+        # name = os.path.basename(evt.src_path)
+        logger.debug(f"{evt.src_path} {evt.event_type}")
         if evt.event_type == "deleted":
-            logger.debug(f"{evt.src_path} deleted in {self.location}")
-            self.model.remove_row(name)
+            self.model.remove_row(evt.src_path)
         elif evt.event_type == "created":
             logger.debug(f"{evt.src_path} created in {self.location}")
-            self.model.insert_row(name)
+            self.model.insert_row(evt.src_path)
         elif evt.event_type == "moved":
             logger.debug(f"{self.location}: Moved {evt.src_path} to "
                          f"{evt.dest_path}")
-            new_name = os.path.basename(evt.dest_path)
-            self.model.rename_row(name, new_name)
+            # new_name = os.path.basename(evt.dest_path)
+            self.model.rename_row(evt.src_path, evt.dest_path)
         elif evt.event_type == "modified":
             logger.debug(f"{self.location}: {evt.src_path} Modified")
-            self.model.update_row(name)
+            self.model.update_row(evt.src_path)
         try:
+            loc = self.location.split(';')[0]
             self.status_info = (
                 f"Files: {self.model.fcount}, Dirs: "
                 f"{self.model.dcount} Total: {humansize(self.model.total)} "
-                f"Free: {humansize(shutil.disk_usage(self.location)[2])} "
+                f"Free: {humansize(shutil.disk_usage(loc)[2])} "
                 f"{self.get_selection_info()}")
         except Exception as e:
             logger.error(e)
@@ -712,14 +705,11 @@ class NavTab(QtWidgets.QFrame):
     def trash(self, files=None):
         """Delete the current list of selected files to trash."""
         if files is None:
-            files = [self.proxy.itemData(index).get(0)
+            files = [self.proxy.get_full_name(index)
                      for index in self.view.selectionModel().selectedIndexes()]
         for f in files:
-            fullname = os.path.join(self.location, f)
-            logger.debug(fullname)
-            # continue
             try:
-                send2trash(fullname)
+                send2trash(f)
                 self.model.remove_row(f)
             except OSError:
                 logger.error(f"Error deleting file", exc_info=True)
@@ -766,9 +756,9 @@ class NavTab(QtWidgets.QFrame):
         """Creates new file or folder."""
         kind = kind.title()
         if kind == "Folder":
-            filename = "new_folder"
+            filename = f"{self.location}{os.sep}new_folder"
         else:
-            filename = "new_file"
+            filename = f"{self.location}{os.sep}new_file"
         inc = ''
         while os.path.exists(filename + str(inc)):
             if inc:
@@ -925,22 +915,17 @@ class NavTab(QtWidgets.QFrame):
 
     def columns_moved(self, ind, old, new):
         """Capture the new visual indices for each of the columns."""
-        for idx, h in enumerate(self.header):
-            h.position = self.hv.visualIndex(idx)
+        idx = 0
+        for k, v in self.header.items():
+            v.position = self.hv.visualIndex(idx)
+            idx += 1
 
     def columns_visibility_changed(self, idx, cap, visible):
         """Update row height if Thumnails column visibility is changed."""
         if cap == "Thumbnails":
             if visible:
+                logger.debug("visible")
                 self.tv.verticalHeader().setDefaultSectionSize(128)
                 self.model.model_size(128, 128)
             else:
                 self.tv.verticalHeader().setDefaultSectionSize(20)
-
-    def image_viewer(self):
-        try:
-            f = self.proxy.itemData(self.view.currentIndex()).get(0)
-            t = Image.open(f"{self.location}{os.sep}{f}")
-            t.show()
-        except Exception:
-            pass

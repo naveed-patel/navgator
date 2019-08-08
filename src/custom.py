@@ -86,8 +86,10 @@ class NavHeaderView(QtWidgets.QHeaderView):
         """Resize table as a whole, required to allow resizing."""
         super().resizeEvent(event)
         self.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
-        for column in range(0, self.count()):
-            self.resizeSection(column, self.header[column].size)
+        # column = 0
+        # for column in range(0, self.count()):
+        #     self.resizeSection(column, self.header[column].size)
+        #     column += 1
         self.setSectionResizeMode(0, QtWidgets.QHeaderView.Stretch)
         self.resizeSection(0, self.sectionSize(0))
         self.setSectionResizeMode(QtWidgets.QHeaderView.Interactive)
@@ -142,20 +144,37 @@ class NavHeaderView(QtWidgets.QHeaderView):
     def contextMenuEvent(self, event):
         """Re-implemented to handle the context menu on header."""
         cMenu = QtWidgets.QMenu()
-        for h in self.header:
-            v = {"checkable": True, "checked": h.visible}
-            act = QtWidgets.QAction(h.caption, self, **v)
+        for k, v in self.header.items():
+            v2 = {"checkable": True, "checked": v.visible}
+            act = QtWidgets.QAction(v.caption, self, **v2)
             cMenu.addAction(act)
         # v = {"checkable": True, "checked": False}
         # act = QtWidgets.QAction("Sort Randomly", self, **v)
         # cMenu.addAction(act)
         choice = cMenu.exec_(event.globalPos())
-        if choice and choice.text() != self.header[0].caption:
-            for idx, h in enumerate(self.header):
-                if h.caption == choice.text():
-                    self.setSectionHidden(idx, h.visible)
-                    self.header[idx].visible = not h.visible
-                    self.visibility_changed.emit(idx, h.caption, h.visible)
+        if choice and choice.text() != self.header["Name"].caption:
+            idx = 0
+            for k, v in self.header.items():
+                if v.caption == choice.text():
+                    self.setSectionHidden(idx, v.visible)
+                    self.header[k].visible = not v.visible
+                    self.visibility_changed.emit(idx, v.caption, v.visible)
                     return
-        # if choice.text() == "Sort Randomly":
-        #     self.randomize.emit()
+                idx += 1
+
+    # def update_headers(self):
+    #     idx = 0
+    #     for k, v in self.header.items():
+    #         if v.caption == self.header["Name"].caption or v.caption in header.keys():
+    #             logger.debug(f"matched {v.caption}")
+    #             if not self.header[k].visible:
+    #                 logger.debug(f"showing {v.caption}")
+    #                 self.header[k].visible = True
+    #                 self.setSectionHidden(idx, True)
+    #                 self.visibility_changed.emit(idx, v.caption, v.visible)
+    #         else:
+    #             if self.header[k].visible:
+    #                 self.header[k].visible = False
+    #                 self.setSectionHidden(idx, False)
+    #                 self.visibility_changed.emit(idx, v.caption, v.visible)
+    #         idx += 1

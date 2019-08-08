@@ -19,7 +19,7 @@ class NavWatcher:
     def on_file_system_event(cls, event):
         """Invokes provided callback on FileSystemEvent."""
         loc = str(pathlib.PurePath(event.src_path).parent)
-        logger.debug(f"Change detected in {loc}")
+        # logger.debug(f"Change detected in {loc}")
         try:
             for callback in cls.monitored[loc]['callbacks']:
                 callback(event, loc)
